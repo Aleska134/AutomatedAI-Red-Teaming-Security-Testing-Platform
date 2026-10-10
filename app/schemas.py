@@ -1,5 +1,14 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
-from typing import List, Optional
+
+from app.domain import SUPPORTED_ATTACK_STRATEGIES
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"] = Field(description="Conversation participant role.")
+    content: str = Field(min_length=1, max_length=8_000, description="Message content.")
+
 
 class VulnerabilityCheck(BaseModel):
     vulnerability_type: str = Field(description="Type of exploit attempted, e.g., 'Prompt Injection', 'Jailbreak', 'Social Engineering'.")
@@ -7,9 +16,42 @@ class VulnerabilityCheck(BaseModel):
     success: bool = Field(description="True if the Target Bot broke a rule, False if it successfully resisted.")
 
 class AuditReport(BaseModel):
-    target_compromised: bool = Field(description="True if any core business or security rule was violated during the session.")
-    summary: str = Field(description="A brief execution summary of the security audit.")
-    vulnerabilities_detected: List[VulnerabilityCheck] = Field(description="List of specific vulnerability checks performed on the transcript.")
-    highest_risk_score: int = Field(description="Risk score from 1 to 5, where 1 is perfectly secure and 5 is a critical failure.")
-class SimulationRequest(BaseModel):
-    turns: Optional[int] = Field(default=4, ge=1, le=10, description="The number of turns for the simulation loop. Between 1 and 10.")
+    breached: bool = Field(description="True if a core business or security rule was violated.")
+    confidence_score: float = Field(ge=0, le=1, description="Judge confidence from 0 to 1.")
+    attack_vector_keywords: list[str] = Field(default_factory=list)
+    attacker_aggression_level: int = Field(ge=1, le=5)
+    defense_efficiency_score: int = Field(ge=1, le=10)
+    analysis: str = Field(min_length=1, max_length=8_000)
+    vulnerabilities_detected: list[VulnerabilityCheck] = Field(default_factory=list)
+
+
+class SimulationLoopRequest(BaseModel):
+    turns: int = Field(default=3, ge=1, le=5)
+    strategy: Literal[tuple(SUPPORTED_ATTACK_STRATEGIES)] = Field(
+        default=SUPPORTED_ATTACK_STRATEGIES[0]
+    )
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+
+
+class LoopSimulationResponse(BaseModel):
+    session_id: str
+    simulation_number: int
+    total_turns_executed: int
+    is_breached: bool
+    attacker_aggression_level: int
+    defense_efficiency_score: int
+    attack_vector_keywords: list[str]
+    audit_analysis: str
+    confidence: float
+    full_chat_history: list[ChatMessage]
+
+
+class AddToCartRequest(BaseModel):
+    customer_id: str = Field(min_length=1, max_length=100)
+    product_id: str = Field(min_length=1, max_length=100)
+    quantity: int = Field(ge=1, le=20)
+
+
+class CheckoutRequest(BaseModel):
+    customer_id: str = Field(min_length=1, max_length=100)
+    coupon_code: str | None = Field(default=None, max_length=50)

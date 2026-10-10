@@ -14,7 +14,7 @@ The system operates on a three-agent architecture designed to simulate and evalu
 
 | Agent | Role | Description |
 | :--- | :--- | :--- |
-| **Target Bot (Defender)** | The Defendant | A simulated retail agent with strict business rules (e.g., max 15% discount) protected by a 3-layer security shield. |
+| **Target Bot (Defender)** | The Defendant | A simulated retail agent with strict business rules (maximum 10% discount and a 30-day return window) protected by a 3-layer security shield. |
 | **Attacker Bot (Hacker)** | The Attacker | An adversarial agent leveraging social engineering, authority hijacking, and prompt injection templates. |
 | **Judge Bot (Auditor)** | The Auditor | An automated cybersecurity compliance inspector that outputs a structured risk report. |
 
@@ -79,4 +79,3 @@ streamlit run app/frontend.py
 - **Simulation Controller:** Select attack vectors like *Social Engineering*, *Authority Override*, or *Jailbreak DAN*.
 - **Analytics Dashboard:** Visual representation of compliance breaches and defense efficiency metrics.
 - **Transcript Explorer:** Detailed logs of every interaction with technical audit analysis and flagged keywords.
-

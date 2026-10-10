@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.database import ping_database
 from app.routers import router as api_router # <-- Importamos nuestro router
+from app.services.commerce import seed_commerce_data
 
 app = FastAPI(
     title="Automated AI Red Teaming Platform API",
@@ -16,6 +17,7 @@ async def startup_event():
     """Executes automatically when the FastAPI server starts up."""
     print("🚀 Initializing system services...")
     await ping_database()
+    seed_commerce_data()
 
 @app.get("/")
 def read_root():

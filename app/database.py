@@ -12,7 +12,9 @@ local_db = TinyDB(DB_PATH)
 # Definimos las tablas (que actúan exactamente como tus colecciones de MongoDB)
 sessions_collection = local_db.table("test_sessions")
 products_collection = local_db.table("products")
-orders_collection = db_table = local_db.table("orders")
+customers_collection = local_db.table("customers")
+orders_collection = local_db.table("orders")
+carts_collection = local_db.table("carts")
 
 async def ping_database():
     """Verifica el estado de la base de datos local."""

@@ -1,33 +1,62 @@
 import uuid
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+
 from app.agents.defender import query_defender
 from app.agents.attacker import generate_attack_payload
-from app.agents.judge import evaluate_simulation 
-from app.database import sessions_collection      
+from app.agents.judge import evaluate_simulation
+from app.database import sessions_collection
+from app.schemas import (
+    AddToCartRequest,
+    CheckoutRequest,
+    LoopSimulationResponse,
+    SimulationLoopRequest,
+)
+from app.services.commerce import (
+    CommerceError,
+    add_to_cart,
+    checkout_cart,
+    get_or_create_cart,
+    search_products,
+)
 
 router = APIRouter(
     prefix="/api/v1",
     tags=["Simulation & Data Endpoints"]
 )
 
-# --- Updated Schema to accept Attack Strategy ---
-class SimulationLoopRequest(BaseModel):
-    turns: int = 3  
-    strategy: str = "social_engineering" # <-- Added payload field with a default value
-    history: list = []  
 
-class LoopSimulationResponse(BaseModel):
-    session_id: str
-    simulation_number: int 
-    total_turns_executed: int
-    is_breached: bool
-    attacker_aggression_level: int
-    defense_efficiency_score: int
-    attack_vector_keywords: list
-    audit_analysis: str
-    confidence: float
-    full_chat_history: list
+@router.get("/commerce/products", summary="Search the demo product catalog")
+def list_products(search: str = ""):
+    return {"data": search_products(search)}
+
+
+@router.get("/commerce/carts/{customer_id}", summary="Get a customer's open cart")
+def get_cart(customer_id: str):
+    try:
+        return get_or_create_cart(customer_id)
+    except CommerceError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.post("/commerce/carts/items", summary="Add an item to a customer's cart")
+def add_cart_item(payload: AddToCartRequest):
+    try:
+        return add_to_cart(
+            payload.customer_id,
+            payload.product_id,
+            payload.quantity,
+        )
+    except CommerceError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/commerce/checkout", summary="Check out a demo cart")
+def checkout(payload: CheckoutRequest):
+    try:
+        return checkout_cart(payload.customer_id, payload.coupon_code)
+    except CommerceError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 @router.post("/simulation/loop", response_model=LoopSimulationResponse)
 def run_automated_simulation_loop(payload: SimulationLoopRequest):
@@ -35,15 +64,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
     Executes a multi-turn adversarial simulation loop where the attacker
     is bound to a user-selected offensive red-teaming strategy.
     """
-    if payload.turns < 1 or payload.turns > 5:
-        raise HTTPException(status_code=400, detail="Turns must be between 1 and 5 to optimize API execution.")
-        
-    # Validate that the requested strategy is supported
-    valid_strategies = ["social_engineering", "authority_override", "jailbreak_dan", "roleplay_hypothetical"]
-    if payload.strategy not in valid_strategies:
-        raise HTTPException(status_code=400, detail=f"Invalid strategy. Choose from: {valid_strategies}")
-        
-    current_history = list(payload.history)
+    current_history = [message.model_dump() for message in payload.history]
     turns_executed = 0
     
     for turn in range(payload.turns):
@@ -61,7 +82,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
     existing_records_count = len(sessions_collection.all())
     next_simulation_number = existing_records_count + 1
     
-    session_id = f"loop-{str(uuid.uuid4())[:8]}"
+    session_id = f"loop-{uuid.uuid4().hex[:8]}"
     
     session_record = {
         "session_id": session_id,
