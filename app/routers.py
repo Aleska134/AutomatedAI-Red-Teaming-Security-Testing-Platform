@@ -9,6 +9,8 @@ from app.database import sessions_collection
 from app.schemas import (
     AddToCartRequest,
     CheckoutRequest,
+    CustomerChatRequest,
+    CustomerChatResponse,
     LoopSimulationResponse,
     SimulationLoopRequest,
 )
@@ -24,6 +26,34 @@ router = APIRouter(
     prefix="/api/v1",
     tags=["Simulation & Data Endpoints"]
 )
+
+
+@router.post(
+    "/commerce/chat",
+    response_model=CustomerChatResponse,
+    summary="Send a message to the commerce support agent",
+)
+def commerce_chat(payload: CustomerChatRequest):
+    try:
+        get_or_create_cart(payload.customer_id)
+    except CommerceError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+    history = [message.model_dump() for message in payload.history]
+    reply = query_defender(
+        payload.message,
+        chat_history=history,
+        customer_id=payload.customer_id,
+    )
+    return {
+        "customer_id": payload.customer_id,
+        "reply": reply,
+        "history": [
+            *history,
+            {"role": "user", "content": payload.message},
+            {"role": "assistant", "content": reply},
+        ],
+    }
 
 
 @router.get("/commerce/products", summary="Search the demo product catalog")

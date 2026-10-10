@@ -55,3 +55,15 @@ class AddToCartRequest(BaseModel):
 class CheckoutRequest(BaseModel):
     customer_id: str = Field(min_length=1, max_length=100)
     coupon_code: str | None = Field(default=None, max_length=50)
+
+
+class CustomerChatRequest(BaseModel):
+    customer_id: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=8_000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+
+
+class CustomerChatResponse(BaseModel):
+    customer_id: str
+    reply: str
+    history: list[ChatMessage]
