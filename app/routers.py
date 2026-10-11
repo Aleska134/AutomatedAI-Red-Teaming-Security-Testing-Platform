@@ -216,6 +216,10 @@ def run_automated_simulation_loop(
             "defense_outcomes": defense_outcomes,
             "attack_generation_events": attack_generation_events,
         }
+        # The identifiers are passed positionally; drop them from the payload so
+        # they do not collide with the ``run_id`` parameter during binding.
+        session_record.pop("run_id", None)
+        session_record.pop("session_id", None)
         session_record = complete_test_run(session_id, **session_record)
         return {
             "session_id": session_id,
@@ -242,8 +246,17 @@ def run_automated_simulation_loop(
             "full_chat_history": current_history,
         }
     except Exception as error:
+        # Mark the run failed and return a clear, non-leaking message instead of
+        # an opaque 500 so the dashboard can explain what happened.
         fail_test_run(session_id, str(error))
-        raise HTTPException(status_code=500, detail="Security test execution failed.") from error
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "The security simulation could not be completed. This usually "
+                "means the LLM provider is unavailable or the OPENAI_API_KEY is "
+                "not configured. Deterministic checks still ran where possible."
+            ),
+        ) from error
 
 # --- History and Analytics Queries (Data Layer) ---
 

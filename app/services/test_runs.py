@@ -51,7 +51,14 @@ def start_test_run(run_id: str) -> dict[str, Any]:
 
 
 def update_test_run(run_id: str, **fields: Any) -> dict[str, Any]:
-    """Update a stored run and return its current record."""
+    """Update a stored run and return its current record.
+
+    ``run_id``/``session_id`` are the record's stable identifiers, so if they
+    arrive in ``fields`` (for example when a full record is splatted back in)
+    they are dropped rather than overwritten, keeping the identity consistent.
+    """
+    fields.pop("run_id", None)
+    fields.pop("session_id", None)
     sessions_collection.update(fields, Query().run_id == run_id)
     result = get_test_run(run_id)
     if result is None:
