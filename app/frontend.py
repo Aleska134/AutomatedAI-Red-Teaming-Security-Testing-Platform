@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 import streamlit as st
-import requests
 import pandas as pd
 import plotly.express as px
 
@@ -17,6 +16,15 @@ from app.services.merchant_reporting import (
     summarize_finding_rules,
 )
 from app.services.security_scenarios import get_categories, get_scenarios
+from app.frontend_auth import (
+    api_get,
+    api_post,
+    current_role,
+    is_authenticated,
+    render_admin_panel,
+    render_auth_gate,
+    render_sidebar_profile,
+)
 
 # Configure the core Streamlit page parameters
 st.set_page_config(
@@ -30,6 +38,13 @@ API_BASE_URL = os.getenv(
     "http://127.0.0.1:8000/api/v1",
 ).rstrip("/")
 
+# Authentication gate: unauthenticated users see sign in / create account /
+# forgot password, and the rest of the dashboard does not render.
+if not is_authenticated():
+    render_auth_gate(API_BASE_URL)
+
+render_sidebar_profile(API_BASE_URL)
+
 st.title("🛡️ Merchant AI Security Center")
 st.markdown("---")
 
@@ -37,10 +52,13 @@ st.markdown("---")
 # FETCH DATA FROM BACKEND API
 # -------------------------------------------------------------------
 @st.cache_data(ttl=2)  # Cache updates quickly to allow fast iteration
-def fetch_all_simulations():
-    """Queries FastAPI to pull all local JSON history logs."""
+def fetch_all_simulations(_token: str):
+    """Queries FastAPI to pull simulation logs visible to the signed-in user.
+
+    The token is part of the cache key so switching accounts refreshes data.
+    """
     try:
-        response = requests.get(f"{API_BASE_URL}/simulations")
+        response = api_get(API_BASE_URL, "/simulations", timeout=30)
         if response.status_code == 200:
             return response.json().get("data", [])
         return []
@@ -75,8 +93,9 @@ def render_test_run_history(simulations):
 
 def run_security_test(strategy, turns):
     """Run one merchant-requested security test through the existing API."""
-    response = requests.post(
-        f"{API_BASE_URL}/simulation/loop",
+    response = api_post(
+        API_BASE_URL,
+        "/simulation/loop",
         json={"turns": turns, "strategy": strategy, "history": []},
         timeout=180,
     )
@@ -87,8 +106,9 @@ def run_security_test(strategy, turns):
 
 def run_webhook_scope_test(webhook_url, auth_token):
     """Run the low-friction scope boundary probe against a merchant endpoint."""
-    response = requests.post(
-        f"{API_BASE_URL}/integrations/webhook/test",
+    response = api_post(
+        API_BASE_URL,
+        "/integrations/webhook/test",
         json={
             "webhook_url": webhook_url,
             "auth_token": auth_token or None,
@@ -141,19 +161,22 @@ def render_tool_events(tool_events):
             )
 
 
-simulations_data = fetch_all_simulations()
+simulations_data = fetch_all_simulations(st.session_state.get("access_token", ""))
 
 # -------------------------------------------------------------------
 # MAIN DASHBOARD PANELS
 # -------------------------------------------------------------------
-tab1, tab2, tab3, tab4 = st.tabs(
-    [
-        "📊 Analytics Dashboard",
-        "💬 Conversation Logs Explorer",
-        "🏪 Merchant Security View",
-        "🧪 System Specs",
-    ]
-)
+_base_tabs = [
+    "📊 Analytics Dashboard",
+    "💬 Conversation Logs Explorer",
+    "🏪 Merchant Security View",
+    "🧪 System Specs",
+]
+_is_admin = current_role() == "admin"
+_tab_labels = _base_tabs + (["🏢 Admin"] if _is_admin else [])
+_tabs = st.tabs(_tab_labels)
+tab1, tab2, tab3, tab4 = _tabs[0], _tabs[1], _tabs[2], _tabs[3]
+admin_tab = _tabs[4] if _is_admin else None
 
 with tab1:
     st.subheader("📊 Security Analytics Summary")
@@ -511,3 +534,8 @@ with tab4:
     - **Defense Matrix:** 3-Layer Input Filtering (Static Signature + Semantic Intent Firewall + Hardened Prompts)
     - **Red Team Matrix:** Multi-Turn Adaptive Prompt Injection LLM Generator
     """)
+
+
+if admin_tab is not None:
+    with admin_tab:
+        render_admin_panel(API_BASE_URL)
