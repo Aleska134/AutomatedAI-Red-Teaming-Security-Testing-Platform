@@ -1,5 +1,7 @@
 # Automated AI Red Teaming & Security Testing Platform
 
+[![tests](https://github.com/Aleska134/AutomatedAI-Red-Teaming-Security-Testing-Platform/actions/workflows/tests.yml/badge.svg)](https://github.com/Aleska134/AutomatedAI-Red-Teaming-Security-Testing-Platform/actions/workflows/tests.yml)
+
 An e-commerce security testing platform for evaluating whether LLM-powered
 customer support agents can safely handle adversarial conversations and
 controlled business operations.
