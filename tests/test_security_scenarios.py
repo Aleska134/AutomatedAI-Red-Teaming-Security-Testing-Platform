@@ -23,3 +23,9 @@ def test_scope_boundary_uses_connected_webhook_mode():
 
     assert scenario.category == "Agent Safety"
     assert scenario.execution_mode == "webhook"
+
+
+def test_legacy_scenarios_default_to_simulator_mode():
+    scenario = SECURITY_SCENARIOS[0]
+
+    assert getattr(scenario, "execution_mode", "simulator") == "simulator"

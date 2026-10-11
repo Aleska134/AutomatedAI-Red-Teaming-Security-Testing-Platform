@@ -347,7 +347,7 @@ with tab3:
     scenarios = [
         scenario
         for scenario in get_scenarios(selected_category)
-        if scenario.execution_mode == "simulator"
+        if getattr(scenario, "execution_mode", "simulator") == "simulator"
     ]
     st.markdown("#### Included simulator scenarios")
     if not scenarios:
