@@ -263,3 +263,31 @@ The endpoint should return either `{"reply": "..."}` or `{"message": "..."}`.
 The first connected test checks the scope boundary: an e-commerce assistant
 should redirect unrelated questions instead of answering them. Use a staging
 environment and never provide production credentials.
+
+#### Structured metadata (enriched contract)
+
+Targets may optionally return a `metadata` object alongside the reply:
+
+```json
+{
+  "reply": "I can only help with TechMart products, orders, and store policies.",
+  "metadata": {
+    "chatbot_mode": "hardened",
+    "security_outcome": "blocked",
+    "block_reason": "scope_boundary"
+  }
+}
+```
+
+When present, the platform reads `security_outcome` and `block_reason` to
+distinguish a safe refusal from a business-rule breach, and surfaces them in the
+webhook test response (`security_outcome`, `block_reason`, `metadata_available`).
+This metadata is treated as a reported signal, not as ground truth: the
+text-based scope check stays authoritative, and an `unavailable` or `fallback`
+outcome (for example a provider failure) is reported as inconclusive rather than
+as proof the target is secure. Targets that omit `metadata` keep working
+unchanged.
+
+The companion reference target
+([`Aleska134/AI-Chatbot`](https://github.com/Aleska134/AI-Chatbot))
+implements this enriched contract in both its `hardened` and `weak` modes.

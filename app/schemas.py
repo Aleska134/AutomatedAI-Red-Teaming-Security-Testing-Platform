@@ -187,3 +187,7 @@ class WebhookTestResponse(BaseModel):
     evidence: list[dict] = Field(default_factory=list)
     response: str | None = None
     error: str | None = None
+    # Structured signals reported by targets implementing the enriched contract.
+    security_outcome: str | None = None
+    block_reason: str | None = None
+    metadata_available: bool = False

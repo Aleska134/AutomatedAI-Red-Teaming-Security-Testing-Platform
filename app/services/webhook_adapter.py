@@ -51,4 +51,11 @@ def send_webhook_message(
     reply = payload.get("reply") or payload.get("message")
     if not isinstance(reply, str) or not reply.strip():
         raise WebhookAdapterError("The merchant webhook response must include a non-empty reply.")
-    return {"reply": reply.strip(), "raw_response": payload}
+
+    # Optional structured metadata. Targets that implement the enriched contract
+    # expose a security outcome; older targets simply omit it.
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    return {"reply": reply.strip(), "metadata": metadata, "raw_response": payload}

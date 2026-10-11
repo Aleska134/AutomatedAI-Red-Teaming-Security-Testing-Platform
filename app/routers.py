@@ -32,7 +32,7 @@ from app.services.test_runs import (
     list_test_runs,
     start_test_run,
 )
-from app.services.security_evaluation import evaluate_scope_boundary
+from app.services.security_evaluation import evaluate_webhook_metadata
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 router = APIRouter(
@@ -130,13 +130,16 @@ def test_webhook_integration(payload: WebhookTestRequest):
             "error": str(error),
         }
 
-    evaluation = evaluate_scope_boundary(result["reply"])
+    evaluation = evaluate_webhook_metadata(result["reply"], result.get("metadata"))
     return {
         "status": "completed",
         "scenario": "scope-boundary",
         "breached": evaluation["breached"],
         "evidence": evaluation["evidence"],
         "response": result["reply"],
+        "security_outcome": evaluation.get("security_outcome"),
+        "block_reason": evaluation.get("block_reason"),
+        "metadata_available": evaluation.get("metadata_available", False),
     }
 
 @router.post("/simulation/loop", response_model=LoopSimulationResponse)
