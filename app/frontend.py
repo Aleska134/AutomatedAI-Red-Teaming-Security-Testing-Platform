@@ -30,30 +30,8 @@ API_BASE_URL = os.getenv(
     "http://127.0.0.1:8000/api/v1",
 ).rstrip("/")
 
-st.title("🛡️ Automated AI Red Teaming & Security Testing Platform")
+st.title("🛡️ Merchant AI Security Center")
 st.markdown("---")
-
-# -------------------------------------------------------------------
-# SIDEBAR: Control Center
-# -------------------------------------------------------------------
-st.sidebar.header("🕹️ Simulation Controller")
-
-# Selection menu for the offensive attack vectors
-attack_strategy = st.sidebar.selectbox(
-    "Select Attack Vector Strategy:",
-    options=["social_engineering", "authority_override", "jailbreak_dan", "roleplay_hypothetical"],
-    index=0
-)
-
-# Number of conversation rounds to run per simulation batch
-simulation_turns = st.sidebar.slider(
-    "Conversation Turns:",
-    min_value=1,
-    max_value=5,
-    value=3
-)
-
-trigger_simulation = st.sidebar.button("🚀 Trigger Attack Simulation", width="stretch")
 
 # -------------------------------------------------------------------
 # FETCH DATA FROM BACKEND API
@@ -124,18 +102,6 @@ def render_tool_events(tool_events):
 
 
 simulations_data = fetch_all_simulations()
-
-# -------------------------------------------------------------------
-# ACTION: Trigger Simulation Pipeline
-# -------------------------------------------------------------------
-if trigger_simulation:
-    with st.spinner("🤖 Simulating multi-turn AI battle in background... please wait..."):
-        try:
-            run_security_test(attack_strategy, simulation_turns)
-            st.success("Simulation completed successfully! Record saved.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Failed to connect to FastAPI backend: {str(e)}")
 
 # -------------------------------------------------------------------
 # MAIN DASHBOARD PANELS
