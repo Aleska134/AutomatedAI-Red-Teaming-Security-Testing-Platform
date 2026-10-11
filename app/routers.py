@@ -21,6 +21,7 @@ from app.services.commerce import (
     get_or_create_cart,
     search_products,
 )
+from app.services.security_evaluation import evaluate_deterministic_evidence
 
 router = APIRouter(
     prefix="/api/v1",
@@ -108,6 +109,10 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         current_history.append({"role": "assistant", "content": defender_reply})
         
     audit_report = evaluate_simulation(current_history)
+    audit_report = {
+        **audit_report,
+        **evaluate_deterministic_evidence(current_history),
+    }
     
     existing_records_count = len(sessions_collection.all())
     next_simulation_number = existing_records_count + 1
@@ -124,7 +129,9 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "attacker_aggression_level": audit_report.get("attacker_aggression_level", 1),
         "defense_efficiency_score": audit_report.get("defense_efficiency_score", 10),
         "attack_vector_keywords": audit_report.get("attack_vector_keywords", []),
-        "analysis": audit_report.get("analysis", "No analysis provided.")
+        "analysis": audit_report.get("analysis", "No analysis provided."),
+        "deterministic_breach": audit_report.get("deterministic_breach", False),
+        "evidence": audit_report.get("evidence", []),
     }
     
     sessions_collection.insert(session_record)
@@ -139,6 +146,8 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "attack_vector_keywords": session_record["attack_vector_keywords"],
         "audit_analysis": session_record["analysis"],
         "confidence": session_record["confidence_score"],
+        "deterministic_breach": session_record["deterministic_breach"],
+        "evidence": session_record["evidence"],
         "full_chat_history": current_history
     }
 

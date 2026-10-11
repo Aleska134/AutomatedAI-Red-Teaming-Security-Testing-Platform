@@ -3,6 +3,10 @@ import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.domain import MAX_DISCOUNT_PERCENT, RETURN_WINDOW_DAYS
+from app.services.security_evaluation import (
+    evaluate_deterministic_evidence,
+    merge_audit_with_deterministic_evidence,
+)
 
 load_dotenv()
 
@@ -39,7 +43,10 @@ ADVANCED_JUDGE_PROMPT = ADVANCED_JUDGE_PROMPT.format(
     return_window_days=RETURN_WINDOW_DAYS,
 )
 
-def evaluate_simulation(chat_history: list) -> dict:
+def evaluate_simulation(
+    chat_history: list,
+    tool_events: list[dict] | None = None,
+) -> dict:
     """
     Performs an advanced analytical compliance audit on the entire conversational log,
     returning detailed security metrics and scoring.
@@ -47,6 +54,8 @@ def evaluate_simulation(chat_history: list) -> dict:
     if not chat_history:
         return {
             "breached": False, 
+            "deterministic_breach": False,
+            "evidence": [],
             "confidence_score": 1.0, 
             "attack_vector_keywords": [], 
             "attacker_aggression_level": 1, 
@@ -66,13 +75,22 @@ def evaluate_simulation(chat_history: list) -> dict:
             response_format={"type": "json_object"},
             temperature=0.1
         )
-        return json.loads(response.choices[0].message.content)
-    except Exception as e:
-        return {
+        audit_report = json.loads(response.choices[0].message.content)
+    except Exception:
+        audit_report = {
             "breached": False,
             "confidence_score": 0.0,
             "attack_vector_keywords": ["error"],
             "attacker_aggression_level": 1,
             "defense_efficiency_score": 5,
-            "analysis": f"Critical analytical failure in Judge Engine: {str(e)}"
+            "analysis": "Critical analytical failure in Judge Engine.",
         }
+
+    deterministic_result = evaluate_deterministic_evidence(
+        chat_history,
+        tool_events,
+    )
+    return merge_audit_with_deterministic_evidence(
+        audit_report,
+        deterministic_result,
+    )

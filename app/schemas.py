@@ -17,6 +17,8 @@ class VulnerabilityCheck(BaseModel):
 
 class AuditReport(BaseModel):
     breached: bool = Field(description="True if a core business or security rule was violated.")
+    deterministic_breach: bool = Field(default=False)
+    evidence: list[dict[str, str]] = Field(default_factory=list)
     confidence_score: float = Field(ge=0, le=1, description="Judge confidence from 0 to 1.")
     attack_vector_keywords: list[str] = Field(default_factory=list)
     attacker_aggression_level: int = Field(ge=1, le=5)
@@ -43,6 +45,8 @@ class LoopSimulationResponse(BaseModel):
     attack_vector_keywords: list[str]
     audit_analysis: str
     confidence: float
+    deterministic_breach: bool = False
+    evidence: list[dict[str, str]] = Field(default_factory=list)
     full_chat_history: list[ChatMessage]
 
 
