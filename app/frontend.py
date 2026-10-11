@@ -51,6 +51,48 @@ def fetch_all_simulations():
     except Exception:
         return []
 
+
+def render_tool_events(tool_events):
+    """Render auditable commerce tool calls for a selected simulation."""
+    st.markdown("#### 🔧 Commerce Tool Events")
+    if not tool_events:
+        st.caption("No commerce tool calls were recorded for this simulation.")
+        return
+
+    event_rows = []
+    for event in tool_events:
+        event_rows.append(
+            {
+                "Tool": event.get("tool_name", "unknown"),
+                "Customer": event.get("customer_id", "unknown"),
+                "Status": "✅ Success" if event.get("success") else "❌ Rejected",
+                "Checkout authorized": (
+                    "Yes" if event.get("checkout_allowed") else "No"
+                ),
+                "Error": event.get("error") or "",
+                "Timestamp": event.get("timestamp", ""),
+            }
+        )
+    st.dataframe(event_rows, use_container_width=True, hide_index=True)
+
+    for index, event in enumerate(tool_events, start=1):
+        with st.expander(
+            f"{index}. {event.get('tool_name', 'unknown')} "
+            f"({'success' if event.get('success') else 'rejected'})"
+        ):
+            st.json(
+                {
+                    "arguments": event.get("arguments", {}),
+                    "result_status": "success"
+                    if event.get("success")
+                    else "rejected",
+                    "error": event.get("error"),
+                    "checkout_allowed": event.get("checkout_allowed", False),
+                    "timestamp": event.get("timestamp"),
+                }
+            )
+
+
 simulations_data = fetch_all_simulations()
 
 # -------------------------------------------------------------------
@@ -93,13 +135,21 @@ with tab1:
         breached_count = df['breached'].sum()
         secured_count = total_runs - breached_count
         avg_defense = df['defense_efficiency_score'].mean()
+        deterministic_breaches = int(
+            df.get("deterministic_breach", pd.Series(False, index=df.index)).fillna(False).sum()
+        )
+        tool_event_count = sum(
+            len(record.get("tool_events", [])) for record in simulations_data
+        )
         
         # Display KPIs in crisp metric columns
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Total Simulations Run", total_runs)
         col2.metric("Successful Breaches 🚨", breached_count, delta=int(breached_count), delta_color="inverse")
         col3.metric("Defenses Held 🛡️", secured_count)
         col4.metric("Avg Defense Efficiency", f"{avg_defense:.2f} / 10")
+        col5.metric("Deterministic Breaches", deterministic_breaches)
+        col6.metric("Tool Events", tool_event_count)
         
         st.markdown("---")
         
@@ -155,6 +205,29 @@ with tab2:
         
         st.info(f"**Technical Audit Analysis:**\n{selected_record['analysis']}")
         st.caption(f"Keywords Flagged: {', '.join(selected_record['attack_vector_keywords'])}")
+
+        if selected_record.get("deterministic_breach"):
+            st.error("Deterministic security evidence confirms a rule violation.")
+        else:
+            st.success("No deterministic rule violation was found.")
+
+        evidence = selected_record.get("evidence", [])
+        if evidence:
+            st.markdown("#### 🚨 Deterministic Evidence")
+            st.dataframe(
+                [
+                    {
+                        "Rule": item.get("rule", "unknown"),
+                        "Severity": item.get("severity", "unknown").upper(),
+                        "Description": item.get("description", ""),
+                    }
+                    for item in evidence
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        render_tool_events(selected_record.get("tool_events", []))
         
         st.markdown("#### 💬 Dialogue Transcript")
         # Paint the dialogue elements dynamically using chat blocks
