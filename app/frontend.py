@@ -2,6 +2,11 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
+from app.services.merchant_reporting import (
+    build_findings,
+    build_merchant_report,
+    summarize_finding_rules,
+)
 
 # Configure the core Streamlit page parameters
 st.set_page_config(
@@ -119,7 +124,14 @@ if trigger_simulation:
 # -------------------------------------------------------------------
 # MAIN DASHBOARD PANELS
 # -------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["📊 Analytics Dashboard", "💬 Conversation Logs Explorer", "🧪 System Specs"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "📊 Analytics Dashboard",
+        "💬 Conversation Logs Explorer",
+        "🏪 Merchant Security View",
+        "🧪 System Specs",
+    ]
+)
 
 with tab1:
     st.subheader("📊 Security Analytics Summary")
@@ -240,6 +252,72 @@ with tab2:
                     st.write(message["content"])
 
 with tab3:
+    st.subheader("🏪 Merchant Security View")
+    merchant_report = build_merchant_report(simulations_data)
+    findings = build_findings(simulations_data)
+
+    risk_labels = {
+        "no_data": ("⚪ NO DATA", "Run a security test to establish a baseline."),
+        "secure": ("🟢 SECURE", "No breach has been recorded in the available runs."),
+        "needs_review": (
+            "🟡 NEEDS REVIEW",
+            "Deterministic evidence requires merchant review.",
+        ),
+        "at_risk": (
+            "🔴 AT RISK",
+            "At least one simulation indicates a security breach.",
+        ),
+    }
+    risk_label, risk_message = risk_labels[merchant_report["risk_status"]]
+    st.markdown(f"### Current status: {risk_label}")
+    st.caption(risk_message)
+
+    metric_columns = st.columns(5)
+    metric_columns[0].metric("Test Runs", merchant_report["total_runs"])
+    metric_columns[1].metric("Breaches", merchant_report["breached_runs"])
+    metric_columns[2].metric(
+        "Deterministic Findings", merchant_report["deterministic_breaches"]
+    )
+    metric_columns[3].metric("Defenses Held", merchant_report["defenses_held"])
+    metric_columns[4].metric(
+        "Average Defense",
+        f"{merchant_report['average_defense_efficiency']:.2f}/10",
+    )
+
+    st.markdown("### Findings requiring attention")
+    if not findings:
+        st.success("No findings are available for review.")
+    else:
+        st.dataframe(
+            [
+                {
+                    "Simulation": finding["simulation_number"],
+                    "Severity": finding["severity"].upper(),
+                    "Rule": finding["rule"],
+                    "Description": finding["description"],
+                    "Recommendation": finding["recommendation"],
+                }
+                for finding in findings
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("### Findings by rule")
+        st.bar_chart(
+            pd.DataFrame(summarize_finding_rules(findings)),
+            x="rule",
+            y="count",
+        )
+
+    latest = merchant_report["latest_simulation"]
+    if latest:
+        st.markdown(
+            f"**Latest test:** Simulation #{latest.get('simulation_number')} "
+            f"({latest.get('session_id')})"
+        )
+
+with tab4:
     st.subheader("🧪 Operational Environment Blueprint")
     st.markdown("""
     This control panel interface hooks straight into an optimized backend execution layers:
