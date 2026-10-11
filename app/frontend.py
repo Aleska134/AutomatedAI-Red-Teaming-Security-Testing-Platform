@@ -53,7 +53,7 @@ simulation_turns = st.sidebar.slider(
     value=3
 )
 
-trigger_simulation = st.sidebar.button("🚀 Trigger Attack Simulation", use_container_width=True)
+trigger_simulation = st.sidebar.button("🚀 Trigger Attack Simulation", width="stretch")
 
 # -------------------------------------------------------------------
 # FETCH DATA FROM BACKEND API
@@ -103,7 +103,7 @@ def render_tool_events(tool_events):
                 "Timestamp": event.get("timestamp", ""),
             }
         )
-    st.dataframe(event_rows, use_container_width=True, hide_index=True)
+    st.dataframe(event_rows, width="stretch", hide_index=True)
 
     for index, event in enumerate(tool_events, start=1):
         with st.expander(
@@ -193,7 +193,7 @@ with tab1:
                 labels={'breached': 'Is Breached'},
                 hole=0.4
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width="stretch")
             
         with col_g2:
             st.markdown("### Attacker Aggression Trends over Time")
@@ -205,7 +205,7 @@ with tab1:
                 labels={'simulation_number': 'Simulation ID', 'attacker_aggression_level': 'Aggression Score (1-5)'},
                 title="Adversarial Aggression Volatility"
             )
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(fig_line, width="stretch")
 
 with tab2:
     st.subheader("💬 Session Transcript Records")
@@ -251,7 +251,7 @@ with tab2:
                     }
                     for item in evidence
                 ],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -312,13 +312,13 @@ with tab3:
             }
             for scenario in scenarios
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     run_merchant_test = st.button(
         "🚀 Run security assessment",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
 
     if run_merchant_test:
@@ -395,7 +395,7 @@ with tab3:
                 }
                 for finding in findings
             ],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
