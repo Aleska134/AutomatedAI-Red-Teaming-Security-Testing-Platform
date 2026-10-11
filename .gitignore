@@ -3,3 +3,4 @@ local_db.json
 __pycache__/
 *.pyc
 venv/
+.env

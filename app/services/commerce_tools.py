@@ -88,8 +88,17 @@ def execute_commerce_tool(
     name: str,
     arguments: dict[str, Any],
     customer_id: str,
+    checkout_allowed: bool = False,
 ) -> dict[str, Any]:
     """Execute one allowlisted tool with the authenticated customer context."""
+    if name == "checkout" and not checkout_allowed:
+        return {
+            "error": (
+                "Checkout requires an explicit purchase confirmation in the "
+                "customer's latest message."
+            )
+        }
+
     handlers: dict[str, Callable[..., Any]] = {
         "search_products": lambda: search_products(arguments.get("search_term", "")),
         "get_cart": lambda: get_or_create_cart(customer_id),
