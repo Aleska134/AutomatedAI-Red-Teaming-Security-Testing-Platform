@@ -196,6 +196,15 @@ streamlit run app/frontend.py
 
 The dashboard is normally available at `http://localhost:8501`.
 
+The dashboard expects the FastAPI backend at
+`http://127.0.0.1:8000/api/v1` by default. To point it to a different
+backend, set `API_BASE_URL` before starting Streamlit:
+
+```bash
+export API_BASE_URL="https://your-forwarded-api-url/api/v1"
+streamlit run app/frontend.py
+```
+
 ## Testing
 
 The automated tests intentionally cover the deterministic parts of the system

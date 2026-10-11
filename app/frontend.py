@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -24,7 +25,10 @@ st.set_page_config(
     layout="wide"
 )
 
-API_BASE_URL = "http://127.0.0.1:8000/api/v1"
+API_BASE_URL = os.getenv(
+    "API_BASE_URL",
+    "http://127.0.0.1:8000/api/v1",
+).rstrip("/")
 
 st.title("🛡️ Automated AI Red Teaming & Security Testing Platform")
 st.markdown("---")
