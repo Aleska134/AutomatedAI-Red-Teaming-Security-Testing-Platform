@@ -38,7 +38,7 @@ from app.services.accounts import (
     set_company_status,
 )
 from app.services.security_evaluation import evaluate_webhook_metadata
-from app.services.targets import TargetError, create_target, get_target, list_targets
+from app.services.targets import create_target, get_target, list_targets
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 router = APIRouter(prefix="/api/v1", tags=["Authentication & Tenancy"])
