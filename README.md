@@ -159,6 +159,50 @@ Checkout requires an explicit confirmation such as:
 I confirm that I want to purchase the items in my cart.
 ```
 
+## Authentication & multi-tenancy
+
+The platform is multi-tenant: each company signs in and sees only its own
+targets and test runs. Access is gated so the operator controls who can use the
+service (useful for an approval-based or subscription offering).
+
+### Accounts and company lifecycle
+
+- A company self-registers with a company name, email, and password. New
+  companies start in **`pending`** status.
+- A **`pending`** or **`suspended`** company can sign in and see its status but
+  cannot run tests or register targets.
+- A platform **admin** activates a company (`pending` → `active`) before it can
+  operate, and can suspend or reactivate it at any time.
+- The first admin is created from the optional `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+  bootstrap variables on startup.
+
+Passwords are hashed with bcrypt; access is carried by a signed JWT that
+includes the company id and role.
+
+### Auth and admin endpoints
+
+| Method | Endpoint | Purpose |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/register` | Register a company (starts pending) |
+| `POST` | `/api/v1/auth/login` | Obtain an access token |
+| `GET` | `/api/v1/auth/me` | Current company and status |
+| `POST` | `/api/v1/auth/change-password` | Change password (signed in) |
+| `POST` | `/api/v1/auth/forgot-password` | Request a password reset token |
+| `POST` | `/api/v1/auth/reset-password` | Reset password with a token |
+| `GET` | `/api/v1/admin/companies` | List companies (admin only) |
+| `POST` | `/api/v1/admin/companies/{id}/status` | Activate/suspend a company (admin only) |
+| `POST` | `/api/v1/targets` | Register a reusable chatbot target |
+| `GET` | `/api/v1/targets` | List this company's targets |
+| `POST` | `/api/v1/targets/{id}/test` | Run the scope-boundary probe against a saved target |
+
+Password reset: there is no email service in local mode, so
+`/auth/forgot-password` returns the reset token directly in the response (and
+the dashboard displays it) so the flow is usable and testable offline. A
+production deployment would email the token and omit it from the response.
+
+All simulation, webhook, and data endpoints now require an active company. A
+company only ever sees its own records; admins retain a full cross-company view.
+
 ## Local setup
 
 ### Requirements
@@ -181,6 +225,15 @@ Create a local `.env` file:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
+
+# Authentication (set a strong secret in any real deployment)
+JWT_SECRET_KEY=change-me-to-a-long-random-string
+ACCESS_TOKEN_EXPIRE_MINUTES=720
+
+# Optional first-admin bootstrap. When both are set, an active admin account
+# is created (or kept in sync) on startup. Never commit real credentials.
+ADMIN_EMAIL=admin@yourcompany.example
+ADMIN_PASSWORD=choose-a-strong-admin-password
 ```
 
 The `.env` file is ignored by Git and must never be committed.
@@ -206,7 +259,10 @@ source venv/bin/activate
 streamlit run app/frontend.py
 ```
 
-The dashboard is normally available at `http://localhost:8501`.
+The dashboard is normally available at `http://localhost:8501`. It opens on a
+sign-in screen with tabs to sign in, create a company account, or reset a
+password. After signing in, the sidebar shows your profile (with change
+password and sign out), and admins get an extra tab to manage companies.
 
 The dashboard expects the FastAPI backend at
 `http://127.0.0.1:8000/api/v1` by default. To point it to a different

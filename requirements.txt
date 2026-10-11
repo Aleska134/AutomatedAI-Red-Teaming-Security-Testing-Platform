@@ -9,3 +9,6 @@ pandas
 plotly
 pydantic
 pytest
+httpx
+bcrypt
+PyJWT

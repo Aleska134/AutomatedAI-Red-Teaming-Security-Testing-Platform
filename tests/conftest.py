@@ -1,8 +1,16 @@
 import uuid
 
 import pytest
+from fastapi.testclient import TestClient
 
-from app.database import customers_collection
+from app.database import (
+    companies_collection,
+    customers_collection,
+    sessions_collection,
+    targets_collection,
+    users_collection,
+)
+from app.services.accounts import register_company, set_company_status
 from app.services.commerce import seed_commerce_data
 
 
@@ -11,6 +19,54 @@ def _seed_commerce_once():
     """Seed the deterministic demo catalog so tests do not depend on ordering."""
     seed_commerce_data()
     yield
+
+
+@pytest.fixture
+def api_client():
+    """A TestClient with isolated auth/tenant tables for each test."""
+    companies_collection.truncate()
+    users_collection.truncate()
+    targets_collection.truncate()
+    sessions_collection.truncate()
+    from app.main import app
+
+    with TestClient(app) as client:
+        yield client
+
+    companies_collection.truncate()
+    users_collection.truncate()
+    targets_collection.truncate()
+    sessions_collection.truncate()
+
+
+@pytest.fixture
+def admin_token(api_client):
+    """Create an active admin account and return a bearer token for it."""
+    register_company(
+        company_name="Admin Co",
+        email="admin@test.local",
+        password="admin-pass-123",
+        role="admin",
+        status="active",
+    )
+    response = api_client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@test.local", "password": "admin-pass-123"},
+    )
+    return response.json()["access_token"]
+
+
+def register_active_company(api_client, name: str, email: str, password: str = "company-pass-1"):
+    """Helper: register a company, activate it, and return (company_id, token)."""
+    from app.services.accounts import get_user_by_email
+
+    register_company(company_name=name, email=email, password=password)
+    user = get_user_by_email(email)
+    set_company_status(user["company_id"], "active")
+    token = api_client.post(
+        "/api/v1/auth/login", json={"email": email, "password": password}
+    ).json()["access_token"]
+    return user["company_id"], token
 
 
 @pytest.fixture

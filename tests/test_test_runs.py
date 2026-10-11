@@ -58,3 +58,29 @@ def test_failed_test_run_records_explicit_error():
         assert failed["error"] == "provider unavailable"
     finally:
         sessions_collection.remove(Query().run_id == run_id)
+
+
+def test_complete_run_tolerates_splatted_record_with_identifiers():
+    """Regression: completing a run by splatting a full record (which already
+    contains run_id/session_id) must not raise a duplicate-argument error."""
+    run_id = f"test-run-{uuid.uuid4().hex[:8]}"
+    try:
+        created = create_test_run(
+            run_id=run_id,
+            strategy="social_engineering",
+            turns_requested=1,
+            company_id="company-xyz",
+        )
+        start_test_run(run_id)
+
+        # Mirror the router: build a record from the created one and splat it.
+        record = {**created, "breached": False, "analysis": "ok"}
+        record.pop("run_id", None)
+        record.pop("session_id", None)
+        completed = complete_test_run(run_id, **record)
+
+        assert completed["status"] == "completed"
+        assert completed["run_id"] == run_id
+        assert completed["company_id"] == "company-xyz"
+    finally:
+        sessions_collection.remove(Query().run_id == run_id)
