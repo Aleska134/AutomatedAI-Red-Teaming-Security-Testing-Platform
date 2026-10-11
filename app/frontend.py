@@ -15,6 +15,7 @@ from app.services.merchant_reporting import (
     build_merchant_report,
     summarize_finding_rules,
 )
+from app.services.security_scenarios import get_categories, get_scenarios
 
 # Configure the core Streamlit page parameters
 st.set_page_config(
@@ -264,22 +265,18 @@ with tab2:
 
 with tab3:
     st.subheader("🏪 Merchant Security View")
-    st.markdown("### Run a manual security test")
+    st.markdown("### Choose a security assessment")
     st.caption(
-        "Choose an attack strategy and run an immediate test against the configured "
-        "Defender. The result will appear in the merchant report and transcript explorer."
+        "Start with the full assessment for broad coverage, or choose a category "
+        "when you want to investigate one risk area."
     )
-    merchant_col1, merchant_col2, merchant_col3 = st.columns([2, 1, 1])
+    merchant_col1, merchant_col2 = st.columns([2, 1])
     with merchant_col1:
-        merchant_strategy = st.selectbox(
-            "Attack strategy",
-            options=[
-                "social_engineering",
-                "authority_override",
-                "jailbreak_dan",
-                "roleplay_hypothetical",
-            ],
-            key="merchant_attack_strategy",
+        assessment_mode = st.radio(
+            "Assessment type",
+            options=["Full Security Assessment", "Focused Test"],
+            horizontal=True,
+            key="merchant_assessment_mode",
         )
     with merchant_col2:
         merchant_turns = st.number_input(
@@ -290,29 +287,48 @@ with tab3:
             step=1,
             key="merchant_simulation_turns",
         )
-    with merchant_col3:
-        st.write("")
-        st.write("")
-        run_merchant_test = st.button(
-            "Run security test",
-            type="primary",
-            use_container_width=True,
+
+    selected_category = None
+    if assessment_mode == "Focused Test":
+        selected_category = st.selectbox(
+            "Risk category",
+            options=get_categories(),
+            key="merchant_security_category",
         )
 
+    scenarios = get_scenarios(selected_category)
+    st.markdown("#### Included scenarios")
+    st.dataframe(
+        [
+            {
+                "Scenario": scenario.name,
+                "Category": scenario.category,
+                "What it checks": scenario.description,
+                "Severity": scenario.severity.upper(),
+            }
+            for scenario in scenarios
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+    run_merchant_test = st.button(
+        "🚀 Run security assessment",
+        type="primary",
+        use_container_width=True,
+    )
+
     if run_merchant_test:
-        with st.spinner("Running merchant security test..."):
+        with st.spinner(f"Running {len(scenarios)} security scenario(s)..."):
             try:
-                result = run_security_test(merchant_strategy, int(merchant_turns))
-                status = "BREACHED" if result.get("is_breached") else "SECURED"
-                st.success(
-                    f"Simulation #{result['simulation_number']} completed: {status}."
-                )
+                results = [
+                    run_security_test(scenario.strategy, int(merchant_turns))
+                    for scenario in scenarios
+                ]
+                breached = sum(result.get("is_breached", False) for result in results)
                 st.session_state["last_manual_test"] = {
-                    "session_id": result["session_id"],
-                    "simulation_number": result["simulation_number"],
-                    "status": status,
-                    "deterministic_breach": result.get("deterministic_breach", False),
-                    "evidence": result.get("evidence", []),
+                    "scenario_count": len(results),
+                    "breached_count": breached,
+                    "status": "BREACHED" if breached else "SECURED",
                 }
                 fetch_all_simulations.clear()
                 st.rerun()
@@ -322,11 +338,12 @@ with tab3:
     if "last_manual_test" in st.session_state:
         last_test = st.session_state["last_manual_test"]
         st.info(
-            f"Last manual test: Simulation #{last_test['simulation_number']} "
-            f"({last_test['status']})."
+            f"Last assessment: {last_test['scenario_count']} scenario(s), "
+            f"{last_test['breached_count']} breach(es), status: "
+            f"{last_test['status']}."
         )
-        if last_test["deterministic_breach"]:
-            st.warning("The last manual test produced deterministic evidence.")
+        if last_test["breached_count"]:
+            st.warning("The last assessment produced one or more breaches.")
 
     merchant_report = build_merchant_report(simulations_data)
     findings = build_findings(simulations_data)
