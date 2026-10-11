@@ -250,7 +250,11 @@ pip install -r requirements.txt
 Create a local `.env` file:
 
 ```env
+# LLM provider: "openai" (default) or "gemini".
+LLM_PROVIDER=openai
 OPENAI_API_KEY=your_openai_api_key_here
+# Only needed when LLM_PROVIDER=gemini (Gemini has a generous free tier):
+GEMINI_API_KEY=your_gemini_api_key_here
 
 # Authentication (set a strong secret in any real deployment)
 JWT_SECRET_KEY=change-me-to-a-long-random-string
@@ -263,6 +267,15 @@ ADMIN_PASSWORD=choose-a-strong-admin-password
 ```
 
 The `.env` file is ignored by Git and must never be committed.
+
+### Choosing an LLM provider
+
+The attacker and judge agents are provider-agnostic. Set `LLM_PROVIDER=gemini`
+and provide a `GEMINI_API_KEY` to run simulations against Google Gemini
+(`gemini-flash-latest` by default) instead of OpenAI — useful for staying
+within Gemini's free tier. Override the model with `OPENAI_MODEL` or
+`GEMINI_MODEL` if needed. If a provider is unavailable, simulations still
+complete using deterministic fallbacks rather than failing.
 
 ### Run the backend
 
