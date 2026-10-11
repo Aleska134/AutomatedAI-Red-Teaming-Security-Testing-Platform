@@ -110,6 +110,76 @@ class WebhookTestRequest(BaseModel):
     auth_token: str | None = Field(default=None, max_length=2_000)
 
 
+class RegisterRequest(BaseModel):
+    company_name: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=8, max_length=72)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=72)
+
+
+class CompanyView(BaseModel):
+    company_id: str
+    name: str
+    status: str
+    created_at: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    role: str
+    company: CompanyView
+
+
+class CompanyStatusUpdate(BaseModel):
+    status: Literal["pending", "active", "suspended"]
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=72)
+    new_password: str = Field(min_length=8, max_length=72)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+    # In local/dev (no email service) the reset token is returned directly so
+    # the flow is usable and testable. A production deployment would email it
+    # instead and omit this field.
+    reset_token: str | None = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=8, max_length=72)
+
+
+class SimpleMessage(BaseModel):
+    message: str
+
+
+class TargetCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    webhook_url: str = Field(min_length=1, max_length=2_000)
+    auth_token: str | None = Field(default=None, max_length=2_000)
+
+
+class TargetView(BaseModel):
+    target_id: str
+    company_id: str
+    name: str
+    webhook_url: str
+    has_auth_token: bool
+    created_at: str
+
+
 class WebhookTestResponse(BaseModel):
     status: Literal["completed", "failed"]
     scenario: str

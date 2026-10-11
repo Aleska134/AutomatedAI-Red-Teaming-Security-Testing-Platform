@@ -19,12 +19,14 @@ def create_test_run(
     strategy: str,
     turns_requested: int,
     run_type: str = "manual",
+    company_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a queued test record before execution begins."""
     timestamp = utc_now()
     record = {
         "run_id": run_id,
         "session_id": run_id,
+        "company_id": company_id,
         "run_type": run_type,
         "strategy": strategy,
         "turns_requested": turns_requested,
@@ -79,15 +81,26 @@ def fail_test_run(run_id: str, error: str) -> dict[str, Any]:
     )
 
 
-def get_test_run(run_id: str) -> dict[str, Any] | None:
-    """Return one test run by its stable identifier."""
+def get_test_run(run_id: str, company_id: str | None = None) -> dict[str, Any] | None:
+    """Return one test run by its stable identifier.
+
+    When ``company_id`` is provided, the run is only returned if it belongs to
+    that company, enforcing tenant isolation.
+    """
     result = sessions_collection.search(Query().run_id == run_id)
-    return result[0] if result else None
+    if not result:
+        return None
+    record = result[0]
+    if company_id is not None and record.get("company_id") != company_id:
+        return None
+    return record
 
 
-def list_test_runs() -> list[dict[str, Any]]:
-    """Return test runs newest first."""
+def list_test_runs(company_id: str | None = None) -> list[dict[str, Any]]:
+    """Return test runs newest first, optionally scoped to one company."""
     records = sessions_collection.search(Query().run_id.exists())
+    if company_id is not None:
+        records = [r for r in records if r.get("company_id") == company_id]
     return sorted(
         records,
         key=lambda item: item.get("created_at") or "",

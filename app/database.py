@@ -16,6 +16,12 @@ customers_collection = local_db.table("customers")
 orders_collection = local_db.table("orders")
 carts_collection = local_db.table("carts")
 
+# Multi-tenant platform tables: registered companies (tenants), their user
+# accounts, and the external chatbot targets each company has onboarded.
+companies_collection = local_db.table("companies")
+users_collection = local_db.table("users")
+targets_collection = local_db.table("targets")
+
 async def ping_database():
     """Verifica el estado de la base de datos local."""
     try:
