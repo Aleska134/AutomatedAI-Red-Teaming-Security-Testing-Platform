@@ -6,6 +6,13 @@ from app.database import customers_collection
 from app.services.commerce import seed_commerce_data
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _seed_commerce_once():
+    """Seed the deterministic demo catalog so tests do not depend on ordering."""
+    seed_commerce_data()
+    yield
+
+
 @pytest.fixture
 def test_customer():
     """Create and remove an isolated demo customer for a commerce test."""
