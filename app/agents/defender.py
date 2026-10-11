@@ -1,6 +1,7 @@
 import os
 import json
 import re
+from datetime import datetime, timezone
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.domain import MAX_DISCOUNT_PERCENT, RETURN_WINDOW_DAYS, STANDARD_COUPON_CODE, STORE_NAME
@@ -118,6 +119,7 @@ def query_defender(
     user_message: str,
     chat_history: list = None,
     customer_id: str = "customer-demo-001",
+    tool_events: list[dict] | None = None,
 ) -> str:
     """
     Layer 3: Hardened Core Engine.
@@ -164,12 +166,26 @@ def query_defender(
                     arguments = json.loads(tool_call.function.arguments)
                 except (TypeError, json.JSONDecodeError):
                     result = {"error": "The requested tool arguments were invalid."}
+                    event_arguments = {}
                 else:
+                    event_arguments = arguments
                     result = execute_commerce_tool(
                         tool_call.function.name,
                         arguments,
                         customer_id,
                         checkout_allowed=checkout_allowed,
+                    )
+                if tool_events is not None:
+                    tool_events.append(
+                        {
+                            "tool_name": tool_call.function.name,
+                            "arguments": event_arguments,
+                            "customer_id": customer_id,
+                            "checkout_allowed": checkout_allowed,
+                            "success": "result" in result,
+                            "error": result.get("error"),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
                     )
                 messages.append(
                     {

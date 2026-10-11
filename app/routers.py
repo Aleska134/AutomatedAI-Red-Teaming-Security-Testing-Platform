@@ -21,7 +21,6 @@ from app.services.commerce import (
     get_or_create_cart,
     search_products,
 )
-from app.services.security_evaluation import evaluate_deterministic_evidence
 
 router = APIRouter(
     prefix="/api/v1",
@@ -41,10 +40,12 @@ def commerce_chat(payload: CustomerChatRequest):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
     history = [message.model_dump() for message in payload.history]
+    tool_events: list[dict] = []
     reply = query_defender(
         payload.message,
         chat_history=history,
         customer_id=payload.customer_id,
+        tool_events=tool_events,
     )
     return {
         "customer_id": payload.customer_id,
@@ -54,6 +55,7 @@ def commerce_chat(payload: CustomerChatRequest):
             {"role": "user", "content": payload.message},
             {"role": "assistant", "content": reply},
         ],
+        "tool_events": tool_events,
     }
 
 
@@ -96,6 +98,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
     is bound to a user-selected offensive red-teaming strategy.
     """
     current_history = [message.model_dump() for message in payload.history]
+    tool_events: list[dict] = []
     turns_executed = 0
     
     for turn in range(payload.turns):
@@ -105,14 +108,14 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         attacker_message = generate_attack_payload(current_history, strategy=payload.strategy)
         current_history.append({"role": "user", "content": attacker_message})
         
-        defender_reply = query_defender(attacker_message, current_history[:-1])
+        defender_reply = query_defender(
+            attacker_message,
+            current_history[:-1],
+            tool_events=tool_events,
+        )
         current_history.append({"role": "assistant", "content": defender_reply})
         
-    audit_report = evaluate_simulation(current_history)
-    audit_report = {
-        **audit_report,
-        **evaluate_deterministic_evidence(current_history),
-    }
+    audit_report = evaluate_simulation(current_history, tool_events)
     
     existing_records_count = len(sessions_collection.all())
     next_simulation_number = existing_records_count + 1
@@ -132,6 +135,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "analysis": audit_report.get("analysis", "No analysis provided."),
         "deterministic_breach": audit_report.get("deterministic_breach", False),
         "evidence": audit_report.get("evidence", []),
+        "tool_events": tool_events,
     }
     
     sessions_collection.insert(session_record)
@@ -148,6 +152,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "confidence": session_record["confidence_score"],
         "deterministic_breach": session_record["deterministic_breach"],
         "evidence": session_record["evidence"],
+        "tool_events": session_record["tool_events"],
         "full_chat_history": current_history
     }
 
