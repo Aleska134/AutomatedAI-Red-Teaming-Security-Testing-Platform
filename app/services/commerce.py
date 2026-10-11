@@ -105,6 +105,14 @@ def get_or_create_cart(customer_id: str) -> dict:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         carts_collection.insert(cart)
+    elif cart["status"] != "open":
+        cart = {
+            **cart,
+            "items": [],
+            "status": "open",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        carts_collection.update(cart, Query().customer_id == customer_id)
     return dict(cart)
 
 
