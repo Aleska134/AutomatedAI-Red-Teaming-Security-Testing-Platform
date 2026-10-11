@@ -78,6 +78,25 @@ SAFE_REFUSALS = {
     ),
 }
 
+SAFE_REFUSAL_VARIANTS = {
+    "social_engineering": (
+        "I cannot make policy exceptions based on urgency or authority claims. "
+        "I can explain the standard options available to you.",
+        "I can help with products, orders, and store policies, but I cannot "
+        "override those policies for a special circumstance.",
+        "That request falls outside the store rules I can apply. I can still "
+        "help you review the regular purchase, discount, or return options.",
+    ),
+    "semantic_shield": (
+        "I can help with products, orders, and store policies, but I cannot "
+        "process that request as written.",
+        "I can assist with standard store support, but I cannot follow that "
+        "request in a way that changes the store's rules.",
+        "I can help with a product, order, or policy question, but I cannot "
+        "continue with that request as phrased.",
+    ),
+}
+
 
 def classify_attack_message(user_message: str) -> str:
     """Classify an obvious attack for a safe, contextual refusal."""
@@ -89,6 +108,18 @@ def classify_attack_message(user_message: str) -> str:
     if re.search(r"\b(?:checkout|purchase|buy|order)\b", normalized_message):
         return "unauthorized_checkout"
     return "social_engineering"
+
+
+def get_safe_refusal(
+    category: str,
+    chat_history: list[dict] | None = None,
+) -> str:
+    """Select a contextual refusal without introducing nondeterministic output."""
+    variants = SAFE_REFUSAL_VARIANTS.get(category)
+    if variants is None:
+        return SAFE_REFUSALS.get(category, SAFE_REFUSALS["semantic_shield"])
+    turn_index = len(chat_history or []) // 2
+    return variants[turn_index % len(variants)]
 
 
 def _set_defense_outcome(
@@ -189,11 +220,7 @@ def query_defender(
     static_attack = static_pre_filter(user_message)
     semantic_attack = False if static_attack else semantic_input_shield(user_message)
     if static_attack or semantic_attack:
-        category = (
-            classify_attack_message(user_message)
-            if static_attack
-            else "semantic_shield"
-        )
+        category = classify_attack_message(user_message)
         _set_defense_outcome(
             defense_outcome,
             security_outcome="blocked",
@@ -201,7 +228,7 @@ def query_defender(
             interaction_quality="safe_refusal",
             business_behavior="not_tested",
         )
-        return SAFE_REFUSALS.get(category, SAFE_REFUSALS["semantic_shield"])
+        return get_safe_refusal(category, chat_history)
 
     # Execute Layer 3 Verification (Core Guarded LLM Processing for safe traffic)
     messages = [{"role": "system", "content": DEFENDER_SYSTEM_PROMPT}]
