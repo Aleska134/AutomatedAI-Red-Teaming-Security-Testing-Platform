@@ -203,6 +203,30 @@ production deployment would email the token and omit it from the response.
 All simulation, webhook, and data endpoints now require an active company. A
 company only ever sees its own records; admins retain a full cross-company view.
 
+### Connecting the reference chatbot target
+
+The companion repository
+[`Aleska134/AI-Chatbot`](https://github.com/Aleska134/AI-Chatbot) is a
+deterministic FastAPI reference chatbot built to be tested by this platform. It
+runs in two modes so you can compare protected versus intentionally weaker
+behavior:
+
+| Mode | Command | Target URL to register |
+| :--- | :--- | :--- |
+| Hardened | `CHATBOT_MODE=hardened MOCK_LLM=true uvicorn app.main:app --port 8100` | `http://localhost:8100/api/v1/chat` |
+| Weak | `CHATBOT_MODE=weak MOCK_LLM=true uvicorn app.main:app --port 8101` | `http://localhost:8101/api/v1/chat` |
+
+End-to-end flow (local):
+
+1. Start the reference chatbot in one terminal (hardened on port 8100).
+2. Start this platform's backend and dashboard, then sign in.
+3. As an **admin**, activate the company you want to test with.
+4. As that **company**, register a target with the URL above (note the required
+   `/api/v1/chat` path) and run the scope-boundary test. The hardened target
+   stays within store scope; the weak target can be made to answer off-topic.
+
+The reference chatbot uses only mock data, so this is safe to run locally.
+
 ## Local setup
 
 ### Requirements

@@ -181,22 +181,41 @@ admin_tab = _tabs[4] if _is_admin else None
 with tab1:
     st.subheader("📊 Security Analytics Summary")
     
+    # Only completed runs carry audit metrics; queued/failed runs (e.g. from an
+    # interrupted or provider-less simulation) are skipped in analytics.
+    completed_runs = [
+        record
+        for record in simulations_data
+        if record.get("status") == "completed" or "breached" in record
+    ]
+
     if not simulations_data:
         st.info("No logs detected in local database. Run your first simulation from the sidebar control panel!")
+    elif not completed_runs:
+        st.info(
+            "Simulations exist but none have completed yet. Run a completed "
+            "simulation to populate the analytics charts."
+        )
     else:
         # Convert JSON objects into a Pandas DataFrame for swift graphing metrics
-        df = pd.DataFrame(simulations_data)
-        
-        # Calculate summary numbers
+        df = pd.DataFrame(completed_runs)
+
+        # Calculate summary numbers with defensive defaults for mixed records.
         total_runs = len(df)
-        breached_count = df['breached'].sum()
+        breached_series = (
+            df.get("breached", pd.Series(False, index=df.index)).fillna(False).astype(bool)
+        )
+        breached_count = int(breached_series.sum())
         secured_count = total_runs - breached_count
-        avg_defense = df['defense_efficiency_score'].mean()
+        avg_defense = (
+            df.get("defense_efficiency_score", pd.Series(dtype="float64")).dropna().mean()
+        )
+        avg_defense = 0.0 if pd.isna(avg_defense) else avg_defense
         deterministic_breaches = int(
             df.get("deterministic_breach", pd.Series(False, index=df.index)).fillna(False).sum()
         )
         tool_event_count = sum(
-            len(record.get("tool_events", [])) for record in simulations_data
+            len(record.get("tool_events", [])) for record in completed_runs
         )
         
         # Display KPIs in crisp metric columns
@@ -212,6 +231,14 @@ with tab1:
         
         col_g1, col_g2 = st.columns(2)
         
+        # Normalize columns the charts rely on so mixed records never break them.
+        df = df.copy()
+        df["breached"] = breached_series
+        if "simulation_number" not in df.columns:
+            df["simulation_number"] = range(len(df))
+        if "attacker_aggression_level" not in df.columns:
+            df["attacker_aggression_level"] = 1
+
         with col_g1:
             st.markdown("### Compliance Breach Status")
             fig_pie = px.pie(
@@ -227,7 +254,7 @@ with tab1:
         with col_g2:
             st.markdown("### Attacker Aggression Trends over Time")
             fig_line = px.line(
-                df, 
+                df.sort_values(by="simulation_number"),
                 x='simulation_number', 
                 y='attacker_aggression_level', 
                 markers=True,
@@ -239,29 +266,37 @@ with tab1:
 with tab2:
     st.subheader("💬 Session Transcript Records")
     
-    if not simulations_data:
-        st.info("No recorded transcripts available yet.")
+    # Only completed runs have a transcript and audit metrics to inspect.
+    transcript_records = [
+        record
+        for record in simulations_data
+        if record.get("simulation_number") is not None and "history" in record
+    ]
+    if not transcript_records:
+        st.info("No completed transcripts available yet.")
     else:
-        df_logs = pd.DataFrame(simulations_data).sort_values(by="simulation_number", ascending=False)
-        
+        df_logs = pd.DataFrame(transcript_records).sort_values(
+            by="simulation_number", ascending=False
+        )
+
         # Build a drop-down menu matching our chronological numbering indexes
         session_options = [f"Simulation #{int(float(row['simulation_number']))} (ID: {row['session_id']})" for _, row in df_logs.iterrows()]
         selected_session_str = st.selectbox("Select a security log to inspect:", options=session_options)
         
         # Extract selected session number integer from string selection
         selected_sim_num = int(float(selected_session_str.split("#")[1].split(" ")[0]))
-        selected_record = next(item for item in simulations_data if item["simulation_number"] == selected_sim_num)
+        selected_record = next(item for item in transcript_records if item["simulation_number"] == selected_sim_num)
         
         # Render Audit Report metadata block
         st.markdown(f"#### 🧑‍⚖️ Auditor Report Summary for Simulation #{selected_sim_num}")
         c_a, c_b, c_c = st.columns(3)
-        status_color = "🔴 BREACHED" if selected_record["breached"] else "🟢 SECURED"
+        status_color = "🔴 BREACHED" if selected_record.get("breached") else "🟢 SECURED"
         c_a.markdown(f"**Compliance Status:** {status_color}")
-        c_b.markdown(f"**Attacker Aggression Level:** `{selected_record['attacker_aggression_level']}/5`")
-        c_c.markdown(f"**Defense Efficiency Score:** `{selected_record['defense_efficiency_score']}/10`")
+        c_b.markdown(f"**Attacker Aggression Level:** `{selected_record.get('attacker_aggression_level', 1)}/5`")
+        c_c.markdown(f"**Defense Efficiency Score:** `{selected_record.get('defense_efficiency_score', 10)}/10`")
         
-        st.info(f"**Technical Audit Analysis:**\n{selected_record['analysis']}")
-        st.caption(f"Keywords Flagged: {', '.join(selected_record['attack_vector_keywords'])}")
+        st.info(f"**Technical Audit Analysis:**\n{selected_record.get('analysis', 'No analysis available.')}")
+        st.caption(f"Keywords Flagged: {', '.join(selected_record.get('attack_vector_keywords', []))}")
 
         if selected_record.get("deterministic_breach"):
             st.error("Deterministic security evidence confirms a rule violation.")
