@@ -243,6 +243,23 @@ with tab2:
                 width="stretch",
                 hide_index=True,
             )
+
+        attack_events = selected_record.get("attack_generation_events", [])
+        if attack_events:
+            st.markdown("#### ⚔️ Attack Generation Sources")
+            st.dataframe(
+                [
+                    {
+                        "Turn": event.get("turn", ""),
+                        "Status": event.get("status", "unknown"),
+                        "Source": event.get("source", "unknown"),
+                        "Provider message": event.get("provider_message") or "",
+                    }
+                    for event in attack_events
+                ],
+                width="stretch",
+                hide_index=True,
+            )
         
         st.markdown("#### 💬 Dialogue Transcript")
         # Paint the dialogue elements dynamically using chat blocks

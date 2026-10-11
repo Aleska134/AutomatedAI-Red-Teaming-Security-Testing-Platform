@@ -49,6 +49,7 @@ class LoopSimulationResponse(BaseModel):
     evidence: list[dict[str, str]] = Field(default_factory=list)
     tool_events: list[dict] = Field(default_factory=list)
     defense_outcomes: list[dict] = Field(default_factory=list)
+    attack_generation_events: list[dict] = Field(default_factory=list)
     full_chat_history: list[ChatMessage]
 
 

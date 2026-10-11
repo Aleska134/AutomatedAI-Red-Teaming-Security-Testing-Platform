@@ -1,9 +1,10 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
 from app.agents.defender import query_defender
-from app.agents.attacker import generate_attack_payload
+from app.agents.attacker import generate_attack_payload_result
 from app.agents.judge import evaluate_simulation
 from app.database import sessions_collection
 from app.schemas import (
@@ -103,13 +104,25 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
     current_history = [message.model_dump() for message in payload.history]
     tool_events: list[dict] = []
     defense_outcomes: list[dict] = []
+    attack_generation_events: list[dict] = []
     turns_executed = 0
     
     for turn in range(payload.turns):
         turns_executed += 1
         
         # Pass the requested strategy directly into our updated attacker model
-        attacker_message = generate_attack_payload(current_history, strategy=payload.strategy)
+        attack_result = generate_attack_payload_result(
+            current_history,
+            strategy=payload.strategy,
+        )
+        attacker_message = attack_result["payload"]
+        attack_generation_events.append(
+            {
+                **attack_result,
+                "turn": turns_executed,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
         current_history.append({"role": "user", "content": attacker_message})
         outcome: dict = {}
         defender_reply = query_defender(
@@ -143,6 +156,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "evidence": audit_report.get("evidence", []),
         "tool_events": tool_events,
         "defense_outcomes": defense_outcomes,
+        "attack_generation_events": attack_generation_events,
     }
     
     sessions_collection.insert(session_record)
@@ -161,6 +175,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "evidence": session_record["evidence"],
         "tool_events": session_record["tool_events"],
         "defense_outcomes": session_record["defense_outcomes"],
+        "attack_generation_events": session_record["attack_generation_events"],
         "full_chat_history": current_history
     }
 

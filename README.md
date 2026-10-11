@@ -32,6 +32,9 @@ escalate suspicious interactions to human support.
 - Semantic input shielding with fail-closed behavior.
 - Structured audit metrics for breach status, confidence, aggression, and
   defense efficiency.
+- A local scenario library fallback when an attacker model provider refuses to
+  generate a testing payload. Provider refusals are recorded separately and
+  are not treated as proof that the Defender is secure.
 
 ### Commerce simulator
 
