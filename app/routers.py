@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth.dependencies import require_active_company
 from app.agents.defender import query_defender
 from app.agents.attacker import generate_attack_payload_result
 from app.agents.judge import evaluate_simulation
@@ -113,7 +114,10 @@ def checkout(payload: CheckoutRequest):
     response_model=WebhookTestResponse,
     summary="Test a merchant chatbot through the v1 webhook contract",
 )
-def test_webhook_integration(payload: WebhookTestRequest):
+def test_webhook_integration(
+    payload: WebhookTestRequest,
+    _: dict = Depends(require_active_company),
+):
     try:
         result = send_webhook_message(
             payload.webhook_url,
@@ -143,16 +147,21 @@ def test_webhook_integration(payload: WebhookTestRequest):
     }
 
 @router.post("/simulation/loop", response_model=LoopSimulationResponse)
-def run_automated_simulation_loop(payload: SimulationLoopRequest):
+def run_automated_simulation_loop(
+    payload: SimulationLoopRequest,
+    principal: dict = Depends(require_active_company),
+):
     """
     Executes a multi-turn adversarial simulation loop where the attacker
     is bound to a user-selected offensive red-teaming strategy.
     """
+    company_id = principal["company"]["company_id"]
     session_id = f"loop-{uuid.uuid4().hex[:8]}"
     run_record = create_test_run(
         run_id=session_id,
         strategy=payload.strategy,
         turns_requested=payload.turns,
+        company_id=company_id,
     )
     run_record = start_test_run(session_id)
     current_history = [message.model_dump() for message in payload.history]
@@ -239,49 +248,65 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
 # --- History and Analytics Queries (Data Layer) ---
 
 @router.get("/simulations", summary="Retrieve all simulation logs")
-def get_all_simulations():
+def get_all_simulations(principal: dict = Depends(require_active_company)):
     """
     Fetches every red teaming session recorded in the local JSON database.
     Essential for parsing summary charts in the frontend dashboard.
     """
-    records = sessions_collection.all()
+    records = _scoped_sessions(principal)
     return {"count": len(records), "data": records}
 
 
+def _is_admin(principal: dict) -> bool:
+    return principal["user"]["role"] == "admin"
+
+
+def _scoped_sessions(principal: dict) -> list[dict]:
+    """Return simulation records visible to the principal (admins see all)."""
+    records = sessions_collection.all()
+    if _is_admin(principal):
+        return records
+    company_id = principal["company"]["company_id"]
+    return [r for r in records if r.get("company_id") == company_id]
+
+
 @router.get("/test-runs", response_model=list[dict], summary="Retrieve persisted test runs")
-def get_test_runs():
-    return list_test_runs()
+def get_test_runs(principal: dict = Depends(require_active_company)):
+    if _is_admin(principal):
+        return list_test_runs()
+    return list_test_runs(company_id=principal["company"]["company_id"])
 
 
 @router.get("/test-runs/{run_id}", response_model=dict, summary="Retrieve one persisted test run")
-def get_test_run_by_id(run_id: str):
-    result = get_test_run(run_id)
+def get_test_run_by_id(run_id: str, principal: dict = Depends(require_active_company)):
+    scope = None if _is_admin(principal) else principal["company"]["company_id"]
+    result = get_test_run(run_id, company_id=scope)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Test run {run_id} not found.")
     return result
 
 @router.get("/simulations/{session_id}", summary="Get specific log by ID")
-def get_simulation_by_id(session_id: str):
+def get_simulation_by_id(
+    session_id: str,
+    principal: dict = Depends(require_active_company),
+):
     """
     Queries TinyDB for a single evaluation profile matching the specified tracking token.
     """
-    from tinydb import Query
-    Session = Query()
-    result = sessions_collection.search(Session.session_id == session_id)
-    
-    if not result:
-        raise HTTPException(status_code=404, detail=f"Simulation session {session_id} not found.")
-    return result[0]
+    for record in _scoped_sessions(principal):
+        if record.get("session_id") == session_id:
+            return record
+    raise HTTPException(status_code=404, detail=f"Simulation session {session_id} not found.")
 
 @router.get("/simulations/number/{sim_num}", summary="Get specific log by its sequence number")
-def get_simulation_by_sequence_number(sim_num: int):
+def get_simulation_by_sequence_number(
+    sim_num: int,
+    principal: dict = Depends(require_active_company),
+):
     """
     Queries TinyDB for an evaluation profile matching the chronological sequence integer.
     """
-    from tinydb import Query
-    Session = Query()
-    result = sessions_collection.search(Session.simulation_number == sim_num)
-    
-    if not result:
-        raise HTTPException(status_code=404, detail=f"Simulation #{sim_num} does not exist.")
-    return result[0]
+    for record in _scoped_sessions(principal):
+        if record.get("simulation_number") == sim_num:
+            return record
+    raise HTTPException(status_code=404, detail=f"Simulation #{sim_num} does not exist.")
