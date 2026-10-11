@@ -65,6 +65,18 @@ def fetch_all_simulations():
         return []
 
 
+def run_security_test(strategy, turns):
+    """Run one merchant-requested security test through the existing API."""
+    response = requests.post(
+        f"{API_BASE_URL}/simulation/loop",
+        json={"turns": turns, "strategy": strategy, "history": []},
+        timeout=180,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(response.text)
+    return response.json()
+
+
 def render_tool_events(tool_events):
     """Render auditable commerce tool calls for a selected simulation."""
     st.markdown("#### 🔧 Commerce Tool Events")
@@ -113,19 +125,10 @@ simulations_data = fetch_all_simulations()
 # -------------------------------------------------------------------
 if trigger_simulation:
     with st.spinner("🤖 Simulating multi-turn AI battle in background... please wait..."):
-        payload = {
-            "turns": simulation_turns,
-            "strategy": attack_strategy,
-            "history": []
-        }
         try:
-            res = requests.post(f"{API_BASE_URL}/simulation/loop", json=payload)
-            if res.status_code == 200:
-                st.success(f"Simulation completed successfully! Record saved.")
-                # Refresh data array instantly after pipeline execution
-                st.rerun()
-            else:
-                st.error(f"Error executing pipeline: {res.text}")
+            run_security_test(attack_strategy, simulation_turns)
+            st.success("Simulation completed successfully! Record saved.")
+            st.rerun()
         except Exception as e:
             st.error(f"Failed to connect to FastAPI backend: {str(e)}")
 
@@ -261,6 +264,70 @@ with tab2:
 
 with tab3:
     st.subheader("🏪 Merchant Security View")
+    st.markdown("### Run a manual security test")
+    st.caption(
+        "Choose an attack strategy and run an immediate test against the configured "
+        "Defender. The result will appear in the merchant report and transcript explorer."
+    )
+    merchant_col1, merchant_col2, merchant_col3 = st.columns([2, 1, 1])
+    with merchant_col1:
+        merchant_strategy = st.selectbox(
+            "Attack strategy",
+            options=[
+                "social_engineering",
+                "authority_override",
+                "jailbreak_dan",
+                "roleplay_hypothetical",
+            ],
+            key="merchant_attack_strategy",
+        )
+    with merchant_col2:
+        merchant_turns = st.number_input(
+            "Conversation turns",
+            min_value=1,
+            max_value=5,
+            value=3,
+            step=1,
+            key="merchant_simulation_turns",
+        )
+    with merchant_col3:
+        st.write("")
+        st.write("")
+        run_merchant_test = st.button(
+            "Run security test",
+            type="primary",
+            use_container_width=True,
+        )
+
+    if run_merchant_test:
+        with st.spinner("Running merchant security test..."):
+            try:
+                result = run_security_test(merchant_strategy, int(merchant_turns))
+                status = "BREACHED" if result.get("is_breached") else "SECURED"
+                st.success(
+                    f"Simulation #{result['simulation_number']} completed: {status}."
+                )
+                st.session_state["last_manual_test"] = {
+                    "session_id": result["session_id"],
+                    "simulation_number": result["simulation_number"],
+                    "status": status,
+                    "deterministic_breach": result.get("deterministic_breach", False),
+                    "evidence": result.get("evidence", []),
+                }
+                fetch_all_simulations.clear()
+                st.rerun()
+            except Exception as error:
+                st.error(f"Security test failed: {error}")
+
+    if "last_manual_test" in st.session_state:
+        last_test = st.session_state["last_manual_test"]
+        st.info(
+            f"Last manual test: Simulation #{last_test['simulation_number']} "
+            f"({last_test['status']})."
+        )
+        if last_test["deterministic_breach"]:
+            st.warning("The last manual test produced deterministic evidence.")
+
     merchant_report = build_merchant_report(simulations_data)
     findings = build_findings(simulations_data)
 
