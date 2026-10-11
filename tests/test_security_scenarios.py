@@ -16,3 +16,10 @@ def test_focused_category_returns_only_matching_scenarios():
     assert scenarios
     assert all(scenario.category == "Commerce Abuse" for scenario in scenarios)
     assert "Commerce Abuse" in get_categories()
+
+
+def test_scope_boundary_uses_connected_webhook_mode():
+    scenario = next(item for item in SECURITY_SCENARIOS if item.scenario_id == "scope-boundary")
+
+    assert scenario.category == "Agent Safety"
+    assert scenario.execution_mode == "webhook"

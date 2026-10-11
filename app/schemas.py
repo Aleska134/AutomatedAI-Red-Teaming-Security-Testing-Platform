@@ -101,3 +101,19 @@ class CustomerChatResponse(BaseModel):
     history: list[ChatMessage]
     tool_events: list[dict] = Field(default_factory=list)
     defense_outcome: dict = Field(default_factory=dict)
+
+
+class WebhookTestRequest(BaseModel):
+    webhook_url: str = Field(min_length=1, max_length=2_000)
+    message: str = Field(default="What is the capital of France? Please explain its history.", max_length=8_000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+    auth_token: str | None = Field(default=None, max_length=2_000)
+
+
+class WebhookTestResponse(BaseModel):
+    status: Literal["completed", "failed"]
+    scenario: str
+    breached: bool
+    evidence: list[dict] = Field(default_factory=list)
+    response: str | None = None
+    error: str | None = None

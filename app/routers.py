@@ -14,6 +14,8 @@ from app.schemas import (
     CustomerChatResponse,
     LoopSimulationResponse,
     SimulationLoopRequest,
+    WebhookTestRequest,
+    WebhookTestResponse,
 )
 from app.services.commerce import (
     CommerceError,
@@ -30,6 +32,8 @@ from app.services.test_runs import (
     list_test_runs,
     start_test_run,
 )
+from app.services.security_evaluation import evaluate_scope_boundary
+from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 router = APIRouter(
     prefix="/api/v1",
@@ -102,6 +106,38 @@ def checkout(payload: CheckoutRequest):
         return checkout_cart(payload.customer_id, payload.coupon_code)
     except CommerceError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post(
+    "/integrations/webhook/test",
+    response_model=WebhookTestResponse,
+    summary="Test a merchant chatbot through the v1 webhook contract",
+)
+def test_webhook_integration(payload: WebhookTestRequest):
+    try:
+        result = send_webhook_message(
+            payload.webhook_url,
+            message=payload.message,
+            history=[message.model_dump() for message in payload.history],
+            auth_token=payload.auth_token,
+        )
+    except WebhookAdapterError as error:
+        return {
+            "status": "failed",
+            "scenario": "scope-boundary",
+            "breached": False,
+            "evidence": [],
+            "error": str(error),
+        }
+
+    evaluation = evaluate_scope_boundary(result["reply"])
+    return {
+        "status": "completed",
+        "scenario": "scope-boundary",
+        "breached": evaluation["breached"],
+        "evidence": evaluation["evidence"],
+        "response": result["reply"],
+    }
 
 @router.post("/simulation/loop", response_model=LoopSimulationResponse)
 def run_automated_simulation_loop(payload: SimulationLoopRequest):

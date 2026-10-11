@@ -85,6 +85,21 @@ def run_security_test(strategy, turns):
     return response.json()
 
 
+def run_webhook_scope_test(webhook_url, auth_token):
+    """Run the low-friction scope boundary probe against a merchant endpoint."""
+    response = requests.post(
+        f"{API_BASE_URL}/integrations/webhook/test",
+        json={
+            "webhook_url": webhook_url,
+            "auth_token": auth_token or None,
+        },
+        timeout=30,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(response.text)
+    return response.json()
+
+
 def render_tool_events(tool_events):
     """Render auditable commerce tool calls for a selected simulation."""
     st.markdown("#### 🔧 Commerce Tool Events")
@@ -329,8 +344,14 @@ with tab3:
             key="merchant_security_category",
         )
 
-    scenarios = get_scenarios(selected_category)
-    st.markdown("#### Included scenarios")
+    scenarios = [
+        scenario
+        for scenario in get_scenarios(selected_category)
+        if scenario.execution_mode == "simulator"
+    ]
+    st.markdown("#### Included simulator scenarios")
+    if not scenarios:
+        st.info("This category is available through the connected chatbot webhook below.")
     st.dataframe(
         [
             {
@@ -377,6 +398,44 @@ with tab3:
         )
         if last_test["breached_count"]:
             st.warning("The last assessment produced one or more breaches.")
+
+    st.markdown("---")
+    st.markdown("### 🔌 Connected chatbot test")
+    st.caption(
+        "Connect a staging chatbot without sharing its code or database. "
+        "The platform sends a versioned scope-boundary probe."
+    )
+    webhook_col1, webhook_col2 = st.columns([2, 1])
+    webhook_url = webhook_col1.text_input(
+        "Staging webhook URL",
+        placeholder="https://staging.example.com/agent",
+        key="merchant_webhook_url",
+    )
+    webhook_token = webhook_col2.text_input(
+        "Bearer token (optional)",
+        type="password",
+        key="merchant_webhook_token",
+    )
+    if st.button("🔎 Test connected chatbot scope", width="stretch"):
+        if not webhook_url:
+            st.error("Enter a staging webhook URL first.")
+        else:
+            with st.spinner("Testing connected chatbot scope..."):
+                try:
+                    webhook_result = run_webhook_scope_test(
+                        webhook_url,
+                        webhook_token,
+                    )
+                    if webhook_result["status"] == "failed":
+                        st.error(webhook_result.get("error", "Webhook test failed."))
+                    elif webhook_result["breached"]:
+                        st.error("The connected chatbot answered outside its store scope.")
+                        st.json(webhook_result)
+                    else:
+                        st.success("The connected chatbot stayed within its store scope.")
+                        st.json(webhook_result)
+                except Exception as error:
+                    st.error(f"Connected chatbot test failed: {error}")
 
     merchant_report = build_merchant_report(simulations_data)
     findings = build_findings(simulations_data)

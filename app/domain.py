@@ -16,6 +16,7 @@ class AttackStrategy(StrEnum):
     AUTHORITY_OVERRIDE = "authority_override"
     JAILBREAK_DAN = "jailbreak_dan"
     ROLEPLAY_HYPOTHETICAL = "roleplay_hypothetical"
+    SCOPE_BOUNDARY = "scope_boundary"
 
 
 SUPPORTED_ATTACK_STRATEGIES = tuple(strategy.value for strategy in AttackStrategy)
