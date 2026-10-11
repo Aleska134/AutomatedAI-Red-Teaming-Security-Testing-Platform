@@ -222,6 +222,27 @@ with tab2:
             )
 
         render_tool_events(selected_record.get("tool_events", []))
+
+        defense_outcomes = selected_record.get("defense_outcomes", [])
+        if defense_outcomes:
+            st.markdown("#### 🛡️ Defense Outcomes")
+            st.dataframe(
+                [
+                    {
+                        "Security outcome": item.get("security_outcome", "unknown"),
+                        "Block reason": item.get("block_reason", "unknown"),
+                        "Interaction quality": item.get(
+                            "interaction_quality", "unknown"
+                        ),
+                        "Business behavior": item.get(
+                            "business_behavior", "unknown"
+                        ),
+                    }
+                    for item in defense_outcomes
+                ],
+                width="stretch",
+                hide_index=True,
+            )
         
         st.markdown("#### 💬 Dialogue Transcript")
         # Paint the dialogue elements dynamically using chat blocks

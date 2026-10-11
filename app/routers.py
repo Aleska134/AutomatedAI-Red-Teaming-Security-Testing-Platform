@@ -41,11 +41,13 @@ def commerce_chat(payload: CustomerChatRequest):
 
     history = [message.model_dump() for message in payload.history]
     tool_events: list[dict] = []
+    defense_outcome: dict = {}
     reply = query_defender(
         payload.message,
         chat_history=history,
         customer_id=payload.customer_id,
         tool_events=tool_events,
+        defense_outcome=defense_outcome,
     )
     return {
         "customer_id": payload.customer_id,
@@ -56,6 +58,7 @@ def commerce_chat(payload: CustomerChatRequest):
             {"role": "assistant", "content": reply},
         ],
         "tool_events": tool_events,
+        "defense_outcome": defense_outcome,
     }
 
 
@@ -99,6 +102,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
     """
     current_history = [message.model_dump() for message in payload.history]
     tool_events: list[dict] = []
+    defense_outcomes: list[dict] = []
     turns_executed = 0
     
     for turn in range(payload.turns):
@@ -107,12 +111,14 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         # Pass the requested strategy directly into our updated attacker model
         attacker_message = generate_attack_payload(current_history, strategy=payload.strategy)
         current_history.append({"role": "user", "content": attacker_message})
-        
+        outcome: dict = {}
         defender_reply = query_defender(
             attacker_message,
             current_history[:-1],
             tool_events=tool_events,
+            defense_outcome=outcome,
         )
+        defense_outcomes.append(outcome)
         current_history.append({"role": "assistant", "content": defender_reply})
         
     audit_report = evaluate_simulation(current_history, tool_events)
@@ -136,6 +142,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "deterministic_breach": audit_report.get("deterministic_breach", False),
         "evidence": audit_report.get("evidence", []),
         "tool_events": tool_events,
+        "defense_outcomes": defense_outcomes,
     }
     
     sessions_collection.insert(session_record)
@@ -153,6 +160,7 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
         "deterministic_breach": session_record["deterministic_breach"],
         "evidence": session_record["evidence"],
         "tool_events": session_record["tool_events"],
+        "defense_outcomes": session_record["defense_outcomes"],
         "full_chat_history": current_history
     }
 

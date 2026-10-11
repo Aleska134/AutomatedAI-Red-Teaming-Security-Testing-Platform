@@ -48,6 +48,7 @@ class LoopSimulationResponse(BaseModel):
     deterministic_breach: bool = False
     evidence: list[dict[str, str]] = Field(default_factory=list)
     tool_events: list[dict] = Field(default_factory=list)
+    defense_outcomes: list[dict] = Field(default_factory=list)
     full_chat_history: list[ChatMessage]
 
 
@@ -73,3 +74,4 @@ class CustomerChatResponse(BaseModel):
     reply: str
     history: list[ChatMessage]
     tool_events: list[dict] = Field(default_factory=list)
+    defense_outcome: dict = Field(default_factory=dict)
