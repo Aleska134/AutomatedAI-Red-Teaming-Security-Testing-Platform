@@ -37,6 +37,13 @@ class SimulationLoopRequest(BaseModel):
 
 class LoopSimulationResponse(BaseModel):
     session_id: str
+    run_id: str
+    status: Literal["queued", "completed", "failed", "running"] = "completed"
+    run_type: str = "manual"
+    strategy: str
+    created_at: str
+    started_at: str
+    completed_at: str | None = None
     simulation_number: int
     total_turns_executed: int
     is_breached: bool
@@ -51,6 +58,24 @@ class LoopSimulationResponse(BaseModel):
     defense_outcomes: list[dict] = Field(default_factory=list)
     attack_generation_events: list[dict] = Field(default_factory=list)
     full_chat_history: list[ChatMessage]
+
+
+class TestRunSummary(BaseModel):
+    run_id: str
+    session_id: str
+    run_type: str
+    strategy: str
+    turns_requested: int
+    total_turns: int = 0
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: str
+    started_at: str
+    completed_at: str | None = None
+    failed_at: str | None = None
+    error: str | None = None
+    breached: bool = False
+    confidence_score: float = 0.0
+    deterministic_breach: bool = False
 
 
 class AddToCartRequest(BaseModel):

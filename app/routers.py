@@ -22,6 +22,14 @@ from app.services.commerce import (
     get_or_create_cart,
     search_products,
 )
+from app.services.test_runs import (
+    complete_test_run,
+    create_test_run,
+    fail_test_run,
+    get_test_run,
+    list_test_runs,
+    start_test_run,
+)
 
 router = APIRouter(
     prefix="/api/v1",
@@ -101,83 +109,93 @@ def run_automated_simulation_loop(payload: SimulationLoopRequest):
     Executes a multi-turn adversarial simulation loop where the attacker
     is bound to a user-selected offensive red-teaming strategy.
     """
+    session_id = f"loop-{uuid.uuid4().hex[:8]}"
+    run_record = create_test_run(
+        run_id=session_id,
+        strategy=payload.strategy,
+        turns_requested=payload.turns,
+    )
+    run_record = start_test_run(session_id)
     current_history = [message.model_dump() for message in payload.history]
     tool_events: list[dict] = []
     defense_outcomes: list[dict] = []
     attack_generation_events: list[dict] = []
     turns_executed = 0
     
-    for turn in range(payload.turns):
-        turns_executed += 1
-        
-        # Pass the requested strategy directly into our updated attacker model
-        attack_result = generate_attack_payload_result(
-            current_history,
-            strategy=payload.strategy,
-        )
-        attacker_message = attack_result["payload"]
-        attack_generation_events.append(
-            {
-                **attack_result,
-                "turn": turns_executed,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        current_history.append({"role": "user", "content": attacker_message})
-        outcome: dict = {}
-        defender_reply = query_defender(
-            attacker_message,
-            current_history[:-1],
-            tool_events=tool_events,
-            defense_outcome=outcome,
-        )
-        defense_outcomes.append(outcome)
-        current_history.append({"role": "assistant", "content": defender_reply})
-        
-    audit_report = evaluate_simulation(current_history, tool_events)
-    
-    existing_records_count = len(sessions_collection.all())
-    next_simulation_number = existing_records_count + 1
-    
-    session_id = f"loop-{uuid.uuid4().hex[:8]}"
-    
-    session_record = {
-        "session_id": session_id,
-        "simulation_number": next_simulation_number, 
-        "total_turns": turns_executed,
-        "history": current_history,
-        "breached": audit_report.get("breached", False),
-        "confidence_score": audit_report.get("confidence_score", 0.0),
-        "attacker_aggression_level": audit_report.get("attacker_aggression_level", 1),
-        "defense_efficiency_score": audit_report.get("defense_efficiency_score", 10),
-        "attack_vector_keywords": audit_report.get("attack_vector_keywords", []),
-        "analysis": audit_report.get("analysis", "No analysis provided."),
-        "deterministic_breach": audit_report.get("deterministic_breach", False),
-        "evidence": audit_report.get("evidence", []),
-        "tool_events": tool_events,
-        "defense_outcomes": defense_outcomes,
-        "attack_generation_events": attack_generation_events,
-    }
-    
-    sessions_collection.insert(session_record)
-    
-    return {
-        "session_id": session_id,
-        "simulation_number": session_record["simulation_number"],
-        "total_turns_executed": turns_executed,
-        "is_breached": session_record["breached"],
-        "attacker_aggression_level": session_record["attacker_aggression_level"],
-        "defense_efficiency_score": session_record["defense_efficiency_score"],
-        "attack_vector_keywords": session_record["attack_vector_keywords"],
-        "audit_analysis": session_record["analysis"],
-        "confidence": session_record["confidence_score"],
-        "deterministic_breach": session_record["deterministic_breach"],
-        "evidence": session_record["evidence"],
-        "tool_events": session_record["tool_events"],
-        "defense_outcomes": session_record["defense_outcomes"],
-        "attack_generation_events": session_record["attack_generation_events"],
-        "full_chat_history": current_history
-    }
+    try:
+        for turn in range(payload.turns):
+            turns_executed += 1
+            attack_result = generate_attack_payload_result(
+                current_history,
+                strategy=payload.strategy,
+            )
+            attacker_message = attack_result["payload"]
+            attack_generation_events.append(
+                {
+                    **attack_result,
+                    "turn": turns_executed,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            current_history.append({"role": "user", "content": attacker_message})
+            outcome: dict = {}
+            defender_reply = query_defender(
+                attacker_message,
+                current_history[:-1],
+                tool_events=tool_events,
+                defense_outcome=outcome,
+            )
+            defense_outcomes.append(outcome)
+            current_history.append({"role": "assistant", "content": defender_reply})
+
+        audit_report = evaluate_simulation(current_history, tool_events)
+        existing_records_count = len(sessions_collection.all())
+        next_simulation_number = existing_records_count
+        session_record = {
+            **run_record,
+            "simulation_number": next_simulation_number,
+            "total_turns": turns_executed,
+            "history": current_history,
+            "breached": audit_report.get("breached", False),
+            "confidence_score": audit_report.get("confidence_score", 0.0),
+            "attacker_aggression_level": audit_report.get("attacker_aggression_level", 1),
+            "defense_efficiency_score": audit_report.get("defense_efficiency_score", 10),
+            "attack_vector_keywords": audit_report.get("attack_vector_keywords", []),
+            "analysis": audit_report.get("analysis", "No analysis provided."),
+            "deterministic_breach": audit_report.get("deterministic_breach", False),
+            "evidence": audit_report.get("evidence", []),
+            "tool_events": tool_events,
+            "defense_outcomes": defense_outcomes,
+            "attack_generation_events": attack_generation_events,
+        }
+        session_record = complete_test_run(session_id, **session_record)
+        return {
+            "session_id": session_id,
+            "run_id": session_id,
+            "status": session_record["status"],
+            "run_type": session_record["run_type"],
+            "strategy": session_record["strategy"],
+            "created_at": session_record["created_at"],
+            "started_at": session_record["started_at"],
+            "completed_at": session_record["completed_at"],
+            "simulation_number": session_record["simulation_number"],
+            "total_turns_executed": turns_executed,
+            "is_breached": session_record["breached"],
+            "attacker_aggression_level": session_record["attacker_aggression_level"],
+            "defense_efficiency_score": session_record["defense_efficiency_score"],
+            "attack_vector_keywords": session_record["attack_vector_keywords"],
+            "audit_analysis": session_record["analysis"],
+            "confidence": session_record["confidence_score"],
+            "deterministic_breach": session_record["deterministic_breach"],
+            "evidence": session_record["evidence"],
+            "tool_events": session_record["tool_events"],
+            "defense_outcomes": session_record["defense_outcomes"],
+            "attack_generation_events": session_record["attack_generation_events"],
+            "full_chat_history": current_history,
+        }
+    except Exception as error:
+        fail_test_run(session_id, str(error))
+        raise HTTPException(status_code=500, detail="Security test execution failed.") from error
 
 # --- History and Analytics Queries (Data Layer) ---
 
@@ -189,6 +207,19 @@ def get_all_simulations():
     """
     records = sessions_collection.all()
     return {"count": len(records), "data": records}
+
+
+@router.get("/test-runs", response_model=list[dict], summary="Retrieve persisted test runs")
+def get_test_runs():
+    return list_test_runs()
+
+
+@router.get("/test-runs/{run_id}", response_model=dict, summary="Retrieve one persisted test run")
+def get_test_run_by_id(run_id: str):
+    result = get_test_run(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Test run {run_id} not found.")
+    return result
 
 @router.get("/simulations/{session_id}", summary="Get specific log by ID")
 def get_simulation_by_id(session_id: str):

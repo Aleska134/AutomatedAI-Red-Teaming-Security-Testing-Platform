@@ -48,6 +48,31 @@ def fetch_all_simulations():
         return []
 
 
+def render_test_run_history(simulations):
+    """Render the persistent execution history for merchant operators."""
+    st.markdown("### Test run history")
+    if not simulations:
+        st.caption("No test runs have been persisted yet.")
+        return
+
+    st.dataframe(
+        [
+            {
+                "Run ID": item.get("run_id", item.get("session_id", "unknown")),
+                "Status": item.get("status", "legacy"),
+                "Strategy": item.get("strategy", "unknown"),
+                "Run type": item.get("run_type", "unknown"),
+                "Turns": item.get("total_turns", item.get("total_turns_executed", 0)),
+                "Breach": "Yes" if item.get("breached") else "No",
+                "Created": item.get("created_at", ""),
+            }
+            for item in simulations
+        ],
+        width="stretch",
+        hide_index=True,
+    )
+
+
 def run_security_test(strategy, turns):
     """Run one merchant-requested security test through the existing API."""
     response = requests.post(
@@ -416,6 +441,7 @@ with tab3:
             f"**Latest test:** Simulation #{latest.get('simulation_number')} "
             f"({latest.get('session_id')})"
         )
+    render_test_run_history(simulations_data)
 
 with tab4:
     st.subheader("🧪 Operational Environment Blueprint")

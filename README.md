@@ -35,6 +35,8 @@ escalate suspicious interactions to human support.
 - A local scenario library fallback when an attacker model provider refuses to
   generate a testing payload. Provider refusals are recorded separately and
   are not treated as proof that the Defender is secure.
+- Persistent test runs with lifecycle status, timestamps, strategy, execution
+  metadata, findings, evidence, and complete transcripts.
 
 ### Commerce simulator
 
@@ -107,6 +109,8 @@ running.
 | `POST` | `/api/v1/commerce/chat` | Chat with the commerce Defender |
 | `POST` | `/api/v1/simulation/loop` | Run an attacker-versus-defender simulation |
 | `GET` | `/api/v1/simulations` | Retrieve simulation records |
+| `GET` | `/api/v1/test-runs` | Retrieve persisted merchant test runs |
+| `GET` | `/api/v1/test-runs/{run_id}` | Retrieve one persisted test run |
 
 The seeded demo customer is:
 
