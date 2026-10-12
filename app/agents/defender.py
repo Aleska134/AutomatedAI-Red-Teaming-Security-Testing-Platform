@@ -13,8 +13,15 @@ from app.services.commerce_tools import (
 
 load_dotenv()
 
-# Initialize the OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or "not-configured")
+# Initialize the OpenAI client. A short timeout and no retries ensure the
+# defender falls back to a safe deterministic refusal quickly when the provider
+# is slow or unavailable, instead of hanging the whole simulation.
+_DEFENDER_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY") or "not-configured",
+    timeout=_DEFENDER_TIMEOUT,
+    max_retries=0,
+)
 
 # HARDENED CORE PROMPT: Strict system instructions with defensive alignment
 DEFENDER_SYSTEM_PROMPT = """

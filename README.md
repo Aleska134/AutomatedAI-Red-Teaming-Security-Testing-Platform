@@ -277,6 +277,10 @@ within Gemini's free tier. Override the model with `OPENAI_MODEL` or
 `GEMINI_MODEL` if needed. If a provider is unavailable, simulations still
 complete using deterministic fallbacks rather than failing.
 
+Each LLM call is bounded by `LLM_REQUEST_TIMEOUT` (seconds, default `30`) with
+no retries, so a slow or unavailable provider degrades to the deterministic
+fallback quickly instead of hanging a multi-turn simulation.
+
 ### Run the backend
 
 ```bash

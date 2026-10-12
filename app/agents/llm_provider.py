@@ -40,18 +40,33 @@ def _gemini_model() -> str:
 
 
 @lru_cache
+def _request_timeout() -> float:
+    """Per-request LLM timeout in seconds (keeps simulations bounded)."""
+    return float(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
+
+
 def _openai_client():
     from openai import OpenAI
 
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY") or "not-configured")
+    # Fail fast: a short timeout and no retries so an unavailable provider falls
+    # back to deterministic behavior quickly instead of hanging a simulation.
+    return OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY") or "not-configured",
+        timeout=_request_timeout(),
+        max_retries=0,
+    )
 
 
 @lru_cache
 def _gemini_client():
     from google import genai
+    from google.genai import types
 
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "not-configured"
-    return genai.Client(api_key=api_key)
+    return genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=int(_request_timeout() * 1000)),
+    )
 
 
 def generate_text(
