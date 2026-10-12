@@ -93,11 +93,13 @@ def render_test_run_history(simulations):
 
 def run_security_test(strategy, turns):
     """Run one merchant-requested security test through the existing API."""
+    # Each turn makes several bounded LLM calls (now capped per request on the
+    # backend), so allow generous headroom for multi-turn runs.
     response = api_post(
         API_BASE_URL,
         "/simulation/loop",
         json={"turns": turns, "strategy": strategy, "history": []},
-        timeout=180,
+        timeout=300,
     )
     if response.status_code != 200:
         raise RuntimeError(response.text)
