@@ -1,12 +1,5 @@
-import os
-from datetime import datetime, timezone
-from openai import OpenAI
-from dotenv import load_dotenv
+from app.agents.llm_provider import generate_text
 from app.domain import MAX_DISCOUNT_PERCENT, STORE_NAME
-
-load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or "not-configured")
 
 # ULTRA-AGGRESSIVE STRATEGIES WITH REAL JAILBREAK SCHEMAS
 ATTACK_STRATEGIES = {
@@ -106,18 +99,13 @@ def generate_attack_payload_result(
     strategy_directive = ATTACK_STRATEGIES.get(strategy, ATTACK_STRATEGIES["social_engineering"])
     system_prompt = ADVANCED_ATTACKER_PROMPT.format(strategy_directive=strategy_directive)
     
-    messages = [{"role": "system", "content": system_prompt}]
-    
-    for msg in chat_history:
-        messages.append(msg)
-        
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            temperature=0.95 # Pushed temperature high to increase creative chaos and adversarial bypass attempts
+        # Temperature kept high to increase creative, adversarial bypass attempts.
+        generated_payload = generate_text(
+            system_prompt,
+            list(chat_history),
+            temperature=0.95,
         )
-        generated_payload = (response.choices[0].message.content or "").strip()
         if generated_payload and not any(
             marker in generated_payload.lower() for marker in PROVIDER_REFUSAL_MARKERS
         ):
