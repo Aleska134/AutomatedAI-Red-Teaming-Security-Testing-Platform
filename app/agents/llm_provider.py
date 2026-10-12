@@ -125,17 +125,39 @@ def _openai_json(system_prompt: str, user_content: str, temperature: float) -> s
 # --- Gemini backend ------------------------------------------------------- #
 
 
-def _gemini_contents(messages: list[dict]) -> list:
-    """Map OpenAI-style messages to Gemini contents (assistant -> model)."""
+# Gemini requires a non-empty request that ends with a user turn. When the
+# caller's history is empty or ends with an assistant/model turn, we add a
+# minimal user instruction so the model is asked to produce the next turn.
+_GEMINI_CONTINUATION_PROMPT = (
+    "Based on the conversation so far, produce your next message now."
+)
+
+
+def _gemini_contents(messages: list[dict]):
+    """Map OpenAI-style messages to Gemini contents, guaranteeing a valid request.
+
+    Differences from OpenAI handled here:
+    - ``assistant`` maps to Gemini's ``model`` role.
+    - Gemini rejects an empty request or one ending on a ``model`` turn, so we
+      append a short user continuation prompt in those cases.
+    """
     from google.genai import types
 
     contents = []
     for message in messages:
         role = "model" if message.get("role") == "assistant" else "user"
+        text = str(message.get("content", ""))
+        if not text:
+            continue
+        contents.append(
+            types.Content(role=role, parts=[types.Part.from_text(text=text)])
+        )
+
+    if not contents or contents[-1].role == "model":
         contents.append(
             types.Content(
-                role=role,
-                parts=[types.Part.from_text(text=str(message.get("content", "")))],
+                role="user",
+                parts=[types.Part.from_text(text=_GEMINI_CONTINUATION_PROMPT)],
             )
         )
     return contents
