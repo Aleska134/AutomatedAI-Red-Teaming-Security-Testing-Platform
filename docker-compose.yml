@@ -1,0 +1,45 @@
+# Local stack: Postgres + FastAPI backend + Streamlit dashboard.
+#   docker compose up --build
+# API: http://localhost:8000/docs  ·  Dashboard: http://localhost:8501
+# Secrets (JWT_SECRET_KEY, ADMIN_*, LLM keys) are read from .env.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: redteam
+      POSTGRES_PASSWORD: redteam
+      POSTGRES_DB: redteam
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U redteam -d redteam"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  backend:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://redteam:redteam@db:5432/redteam
+      APP_ENV: ${APP_ENV:-development}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  dashboard:
+    build: .
+    command: ["streamlit", "run", "app/frontend.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    environment:
+      API_BASE_URL: http://backend:8000/api/v1
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
