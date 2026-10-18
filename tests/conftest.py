@@ -14,9 +14,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.database import (
-    init_database,
     companies_collection,
     customers_collection,
+    init_database,
     sessions_collection,
     targets_collection,
     users_collection,
