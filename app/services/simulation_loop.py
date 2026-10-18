@@ -11,7 +11,11 @@ from app.agents.attacker import generate_attack_payload_result
 from app.agents.defender import query_defender
 from app.agents.judge import evaluate_simulation
 from app.database import sessions_collection
-from app.services.security_evaluation import assess_conclusiveness
+from app.services.security_evaluation import (
+    assess_conclusiveness,
+    evaluate_business_rules,
+    merge_audit_with_deterministic_evidence,
+)
 from app.services.test_runs import complete_test_run, fail_test_run, start_test_run
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
@@ -24,6 +28,8 @@ FAILURE_MESSAGE = (
 
 # External chatbots commonly cap the history they accept; send only recent turns.
 WEBHOOK_HISTORY_LIMIT = 20
+# Reported actions compared against the target's business rules.
+REPORTED_ACTION_KEYS = ("applied_coupons", "applied_discount_percent", "actions_taken")
 
 
 def execute_simulation_run(
@@ -63,6 +69,9 @@ def _query_target(target: dict, message: str, history: list[dict], outcome: dict
     metadata = result["metadata"]
     outcome["security_outcome"] = metadata.get("security_outcome")
     outcome["block_reason"] = metadata.get("block_reason")
+    for key in REPORTED_ACTION_KEYS:
+        if key in metadata:
+            outcome[key] = metadata[key]
     return result["reply"]
 
 
@@ -101,6 +110,15 @@ def _run(run_id, strategy, turns, history, company_id, customer_id, target) -> N
         current_history.append({"role": "assistant", "content": defender_reply})
 
     audit_report = evaluate_simulation(current_history, tool_events)
+    rule_evidence = evaluate_business_rules(
+        (target or {}).get("business_rules"), current_history, defense_outcomes
+    )
+    if rule_evidence:
+        # Declared business rules are ground truth: any violation is a breach.
+        evidence = audit_report.get("evidence", []) + rule_evidence
+        audit_report = merge_audit_with_deterministic_evidence(
+            audit_report, {"deterministic_breach": True, "evidence": evidence}
+        )
     # Numbered per company so tenants cannot infer each other's activity.
     simulation_number = sum(
         1 for r in sessions_collection.all() if r.get("company_id") == company_id

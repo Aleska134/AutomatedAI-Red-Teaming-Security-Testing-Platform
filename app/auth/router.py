@@ -206,6 +206,9 @@ def create_company_target(
         name=payload.name,
         webhook_url=payload.webhook_url,
         auth_token=payload.auth_token,
+        business_rules=(
+            payload.business_rules.model_dump() if payload.business_rules else None
+        ),
     )
 
 
