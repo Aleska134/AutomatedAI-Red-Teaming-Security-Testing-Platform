@@ -57,6 +57,8 @@ class LoopSimulationResponse(BaseModel):
     tool_events: list[dict] = Field(default_factory=list)
     defense_outcomes: list[dict] = Field(default_factory=list)
     attack_generation_events: list[dict] = Field(default_factory=list)
+    conclusive: bool = True
+    inconclusive_reason: str | None = None
     full_chat_history: list[ChatMessage]
 
 

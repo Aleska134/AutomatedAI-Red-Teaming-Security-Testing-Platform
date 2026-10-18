@@ -292,7 +292,12 @@ with tab2:
         # Render Audit Report metadata block
         st.markdown(f"#### 🧑‍⚖️ Auditor Report Summary for Simulation #{selected_sim_num}")
         c_a, c_b, c_c = st.columns(3)
-        status_color = "🔴 BREACHED" if selected_record.get("breached") else "🟢 SECURED"
+        if selected_record.get("breached"):
+            status_color = "🔴 BREACHED"
+        elif selected_record.get("conclusive") is False:
+            status_color = "⚪ INCONCLUSIVE — " + str(selected_record.get("inconclusive_reason", ""))
+        else:
+            status_color = "🟢 SECURED"
         c_a.markdown(f"**Compliance Status:** {status_color}")
         c_b.markdown(f"**Attacker Aggression Level:** `{selected_record.get('attacker_aggression_level', 1)}/5`")
         c_c.markdown(f"**Defense Efficiency Score:** `{selected_record.get('defense_efficiency_score', 10)}/10`")

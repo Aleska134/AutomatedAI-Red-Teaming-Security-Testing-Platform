@@ -34,7 +34,10 @@ from app.services.test_runs import (
     list_test_runs,
     start_test_run,
 )
-from app.services.security_evaluation import evaluate_webhook_metadata
+from app.services.security_evaluation import (
+    assess_conclusiveness,
+    evaluate_webhook_metadata,
+)
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 router = APIRouter(
@@ -228,6 +231,7 @@ def run_automated_simulation_loop(
             "tool_events": tool_events,
             "defense_outcomes": defense_outcomes,
             "attack_generation_events": attack_generation_events,
+            **assess_conclusiveness(defense_outcomes, audit_report),
         }
         # The identifiers are passed positionally; drop them from the payload so
         # they do not collide with the ``run_id`` parameter during binding.
@@ -256,6 +260,8 @@ def run_automated_simulation_loop(
             "tool_events": session_record["tool_events"],
             "defense_outcomes": session_record["defense_outcomes"],
             "attack_generation_events": session_record["attack_generation_events"],
+            "conclusive": session_record["conclusive"],
+            "inconclusive_reason": session_record["inconclusive_reason"],
             "full_chat_history": current_history,
         }
     except Exception as error:
