@@ -17,7 +17,8 @@ itself is secure; a security tool with security holes undermines itself.
 
 ## Phase 2 — Solid, maintainable foundation
 
-- [ ] Replace TinyDB with SQLite via SQLModel (Postgres-ready, safe under concurrency).
+- [ ] Replace TinyDB with SQLModel: SQLite locally, Neon Postgres in production
+      (selected by `DATABASE_URL`; safe under concurrency).
 - [ ] Pin dependency versions; add `ruff` lint to CI.
 - [ ] `docker compose up` runs backend + dashboard with one command.
 - [ ] Run simulations in the background (`BackgroundTasks`); poll run status.
@@ -35,7 +36,9 @@ itself is secure; a security tool with security holes undermines itself.
 
 ## Phase 4 — Portfolio launch
 
-- [ ] Free deploy (Render / Fly.io) with a public demo account and sample data.
+- [ ] Deploy on **Heroku** (GitHub Student Pack credits) + **Neon** Postgres (free
+      tier) with a public demo account and sample data. See
+      [deployment notes](RECOMMENDATIONS.md#deployment-heroku--neon).
 - [ ] README: demo GIF, architecture diagram, threat model section.
 - [ ] Short write-up: "I built a tool that attacks AI chatbots — here's what I found."
 
