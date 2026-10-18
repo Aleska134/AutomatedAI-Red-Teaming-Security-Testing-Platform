@@ -39,6 +39,12 @@ itself is secure; a security tool with security holes undermines itself.
       dangerous output such as `<script>` or `javascript:` links (LLM05), and tool
       abuse checked via tool events and the target's `forbidden_actions` (LLM06).
       Later: injection through real tool output (needs a poisoned sandbox catalog).
+- [ ] Realistic mock company data in the reference chatbot (AI-Chatbot repo):
+      seeded SQLite with fake customers, orders, inventory (cost/supplier),
+      internal notes and staff codes; weak mode skips ownership checks (IDOR),
+      hardened mode enforces them; a poisoned product review for real indirect
+      injection. Platform side: `protected_values` (canaries) in business rules and
+      a `canary_leak` rule (LLM02) — any planted value in a reply is a proven leak.
 - [ ] Downloadable per-run report (HTML/PDF): severity, evidence, remediation.
 - [ ] LLM judge with an explicit rubric so evaluation works in any language.
 - [ ] Defender tool-calling through the provider layer (Gemini support).
