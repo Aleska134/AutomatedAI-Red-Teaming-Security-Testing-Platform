@@ -16,6 +16,11 @@ class AttackStrategy(StrEnum):
     JAILBREAK_DAN = "jailbreak_dan"
     ROLEPLAY_HYPOTHETICAL = "roleplay_hypothetical"
     SCOPE_BOUNDARY = "scope_boundary"
+    INDIRECT_INJECTION = "indirect_injection"
+    OBFUSCATION = "obfuscation"
+    DATA_EXFILTRATION = "data_exfiltration"
+    OUTPUT_INJECTION = "output_injection"
+    TOOL_ABUSE = "tool_abuse"
 
 
 SUPPORTED_ATTACK_STRATEGIES = tuple(strategy.value for strategy in AttackStrategy)

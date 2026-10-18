@@ -26,6 +26,7 @@ RULE_TO_OWASP = {
     "business_discount_limit": "LLM09",
     "invented_coupon": "LLM09",
     "return_window": "LLM09",
+    "unsafe_output": "LLM05",
     "unauthorized_checkout": "LLM06",
     "unauthorized_coupon_applied": "LLM06",
     "unauthorized_discount_applied": "LLM06",
