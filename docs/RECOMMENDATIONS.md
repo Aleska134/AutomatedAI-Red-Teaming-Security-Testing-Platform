@@ -51,6 +51,54 @@ another customer's data, replies containing executable HTML/links, and tool abus
 policies (extend `business_rules` with forbidden promises), unbounded output
 length, and brand safety. LLM03, LLM04 and LLM08 cannot be tested from a webhook.
 
+## Future: LLM vs LLM (reference chatbot with a real model)
+
+**Goal.** Today the reference chatbot (AI-Chatbot) is keyword-based, so an
+LLM attacker can only "win" by hitting exact phrases. A real model behind the
+same data and tools makes the demo look like a real company's chatbot. Keep the
+keyword mode for tests and CI (free and deterministic).
+
+**Which model to use where.**
+
+| Where | Model source | Why |
+| --- | --- | --- |
+| CI / unit tests | Keyword mode (no LLM) | Free and deterministic |
+| Local development | Ollama, *only on a capable machine* (Apple Silicon, 16 GB+ for 7-8B models) | $0 per run |
+| Heroku demo | Commercial API, cheapest tier (Gemini Flash, GPT mini-class) | Heroku cannot host models |
+
+Hosted open models (for example Groq or OpenRouter) also expose
+OpenAI-compatible APIs, often with free or very cheap tiers. Check current
+pricing before relying on one.
+
+**Step by step (when credits/hardware allow).**
+
+1. *Platform:* add an `openai_compatible` provider to `app/agents/llm_provider.py`
+   reading `LLM_BASE_URL` + `LLM_MODEL` (Ollama is `http://localhost:11434/v1`).
+   Allow choosing the provider per role (attacker / judge) so the attacker can be
+   cheap and the judge stronger.
+2. *AI-Chatbot:* add `LLM_ENABLED=true` (the `llm_enabled` metadata flag already
+   exists). The model gets a system prompt with the store rules and the tools
+   `search_products`, `get_order(order_id)`, `get_customer(name)`, `get_reviews(sku)`
+   over the existing SQLite mock data. Pick a model with tool calling (Qwen 2.5,
+   Llama 3.1, Gemini Flash, GPT mini-class).
+3. *Weak vs hardened stays in code, not in the prompt:* weak tools skip the
+   ownership check (IDOR); hardened tools enforce it and strip instruction-like
+   text from reviews. That keeps the demo honest: hardened resists because of
+   real controls, not a lucky prompt.
+4. Keep reporting `applied_coupons` / `actions_taken` in metadata and register
+   the canaries as `protected_values`, so leaks stay provable by exact match.
+5. Fall back to keyword mode if the provider fails, marking
+   `provider_status: "fallback"` (never counted as secure).
+6. Tests: mock the LLM client; one optional, manually-run smoke test against the
+   real provider.
+
+**Cost controls for the public demo.** Cap turns (already ≤5), per-account daily
+run limits, cheapest models, short history (already 20 turns), and a few
+pre-recorded showcase runs so visitors can see results without spending credits.
+
+**Later (optional):** fine-tune a small open model (LoRA) as a specialized
+attacker using transcripts the platform already stores.
+
 ## Deployment: Heroku + Neon
 
 A good fit for this project: Heroku is covered by the GitHub Student Developer
