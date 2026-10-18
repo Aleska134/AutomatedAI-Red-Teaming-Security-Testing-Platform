@@ -41,3 +41,24 @@ def test_provider_exception_uses_local_scenario_library(monkeypatch):
 
     assert result["status"] == "generation_failed"
     assert result["source"] == "local_scenario_library"
+
+
+def test_attacker_sees_history_from_its_own_perspective(monkeypatch):
+    captured = {}
+
+    def fake_generate_text(system_prompt, messages, **_):
+        captured["messages"] = messages
+        return "Next attack message."
+
+    monkeypatch.setattr(attacker, "generate_text", fake_generate_text)
+    history = [
+        {"role": "user", "content": "attacker turn"},
+        {"role": "assistant", "content": "defender reply"},
+    ]
+
+    attacker.generate_attack_payload_result(history)
+
+    # The attacker's own turns become "assistant"; the defender's become "user".
+    assert [m["role"] for m in captured["messages"]] == ["assistant", "user"]
+    # The caller's history is not mutated.
+    assert history[0]["role"] == "user"
