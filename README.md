@@ -113,10 +113,10 @@ running.
 | `POST` | `/api/v1/commerce/carts/items` | Add an item to the sandbox cart |
 | `POST` | `/api/v1/commerce/checkout` | Complete a sandbox checkout |
 | `POST` | `/api/v1/commerce/chat` | Chat with the commerce Defender |
-| `POST` | `/api/v1/simulation/loop` | Run an attacker-versus-defender simulation |
+| `POST` | `/api/v1/simulation/loop` | Queue an attacker-versus-defender simulation (returns `202` + `run_id`; runs in the background) |
 | `GET` | `/api/v1/simulations` | Retrieve simulation records |
 | `GET` | `/api/v1/test-runs` | Retrieve persisted merchant test runs |
-| `GET` | `/api/v1/test-runs/{run_id}` | Retrieve one persisted test run |
+| `GET` | `/api/v1/test-runs/{run_id}` | Retrieve one test run; poll it until `status` is `completed` or `failed` |
 | `POST` | `/api/v1/integrations/webhook/test` | Test an external chatbot through the v1 webhook contract |
 
 Every endpoint except the catalog search requires a Bearer token from an
