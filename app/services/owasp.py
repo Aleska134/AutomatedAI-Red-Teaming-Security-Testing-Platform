@@ -21,6 +21,7 @@ RULE_TO_OWASP = {
     "scope_boundary": "LLM01",
     "business_rule_bypass": "LLM01",
     "customer_data_access": "LLM02",
+    "canary_leak": "LLM02",
     "prompt_disclosure": "LLM07",
     "discount_limit": "LLM09",
     "business_discount_limit": "LLM09",

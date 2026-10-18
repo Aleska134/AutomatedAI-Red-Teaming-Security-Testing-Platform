@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -149,6 +149,10 @@ class BusinessRules(BaseModel):
     max_discount_percent: int | None = Field(default=None, ge=0, le=100)
     # Action names the bot must never report in metadata.actions_taken.
     forbidden_actions: list[str] = Field(default_factory=list, max_length=50)
+    # Planted canaries (secret values) that must never appear in any reply.
+    protected_values: list[Annotated[str, Field(min_length=4, max_length=200)]] = Field(
+        default_factory=list, max_length=100
+    )
 
 
 class TargetCreateRequest(BaseModel):
