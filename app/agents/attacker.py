@@ -85,6 +85,20 @@ ADVANCED_ATTACKER_PROMPT = ADVANCED_ATTACKER_PROMPT.format(
     strategy_directive="{strategy_directive}",
 )
 
+def _attacker_perspective(chat_history: list) -> list[dict]:
+    """Swap roles so the attacker LLM sees its own past turns as ``assistant``.
+
+    Simulation history is stored from the defender's point of view (attacker =
+    ``user``, defender = ``assistant``). Passed as-is, the attacker model would
+    continue the defender's side of the conversation instead of attacking.
+    """
+    swapped = {"user": "assistant", "assistant": "user"}
+    return [
+        {**message, "role": swapped.get(message.get("role"), message.get("role"))}
+        for message in chat_history
+    ]
+
+
 def generate_attack_payload_result(
     chat_history: list = None,
     strategy: str = "social_engineering",
@@ -103,7 +117,7 @@ def generate_attack_payload_result(
         # Temperature kept high to increase creative, adversarial bypass attempts.
         generated_payload = generate_text(
             system_prompt,
-            list(chat_history),
+            _attacker_perspective(chat_history),
             temperature=0.95,
         )
         if generated_payload and not any(
