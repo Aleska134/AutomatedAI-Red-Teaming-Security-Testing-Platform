@@ -109,3 +109,5 @@ def _offline_public_dns(monkeypatch):
     monkeypatch.setattr(
         "app.services.webhook_adapter._resolve_host", lambda host: ["93.184.216.34"]
     )
+    # A developer's .env may allow localhost targets; tests need the real guard.
+    monkeypatch.delenv("ALLOW_PRIVATE_WEBHOOKS", raising=False)

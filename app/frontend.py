@@ -23,7 +23,6 @@ from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
 from app.services.merchant_reporting import (  # noqa: E402
     build_findings,
     build_merchant_report,
-    summarize_finding_rules,
 )
 from app.services.owasp import owasp_label  # noqa: E402
 from app.services.run_report import render_run_report  # noqa: E402
@@ -93,6 +92,22 @@ def render_test_run_history(simulations):
         width="stretch",
         hide_index=True,
     )
+
+
+SEVERITY_COLORS = {"CRITICAL": "#b42318", "HIGH": "#ef6820", "MEDIUM": "#f79009", "LOW": "#98a2b3"}
+
+
+def style_chart(fig, height=280):
+    """Compact, transparent layout shared by every dashboard chart."""
+    fig.update_layout(
+        height=height,
+        margin=dict(l=8, r=8, t=8, b=8),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=-0.25, x=0, title_text=""),
+        font=dict(size=12),
+    )
+    return fig
 
 
 def run_security_test(strategy, turns, target_id=None, poll_interval=2, max_wait=300):
@@ -299,28 +314,30 @@ with tab1:
             df["attacker_aggression_level"] = 1
 
         with col_g1:
-            st.markdown("### Compliance Breach Status")
+            st.markdown("#### Breach status")
+            outcome = df["breached"].map({True: "Breached", False: "Defense held"})
             fig_pie = px.pie(
-                df, 
-                names='breached', 
-                color='breached',
-                color_discrete_map={True: '#EF553B', False: '#636EFA'},
-                labels={'breached': 'Is Breached'},
-                hole=0.4
+                names=outcome,
+                color=outcome,
+                color_discrete_map={"Breached": "#d92d20", "Defense held": "#12b76a"},
+                hole=0.6,
             )
-            st.plotly_chart(fig_pie, width="stretch")
+            fig_pie.update_traces(textinfo="value+percent", sort=False)
+            st.plotly_chart(style_chart(fig_pie), width="stretch")
             
         with col_g2:
-            st.markdown("### Attacker Aggression Trends over Time")
+            st.markdown("#### Attacker aggression per simulation")
             fig_line = px.line(
                 df.sort_values(by="simulation_number"),
-                x='simulation_number', 
-                y='attacker_aggression_level', 
+                x="simulation_number",
+                y="attacker_aggression_level",
                 markers=True,
-                labels={'simulation_number': 'Simulation ID', 'attacker_aggression_level': 'Aggression Score (1-5)'},
-                title="Adversarial Aggression Volatility"
+                labels={"simulation_number": "Simulation", "attacker_aggression_level": "Aggression (1-5)"},
             )
-            st.plotly_chart(fig_line, width="stretch")
+            fig_line.update_traces(line_color="#6941c6", line_width=2)
+            fig_line.update_yaxes(range=[0, 5.5], dtick=1, gridcolor="rgba(128,128,128,0.2)")
+            fig_line.update_xaxes(dtick=1, showgrid=False)
+            st.plotly_chart(style_chart(fig_line), width="stretch")
 
 with tab2:
     st.subheader("💬 Session Transcript Records")
@@ -643,12 +660,28 @@ with tab3:
             hide_index=True,
         )
 
-        st.markdown("### Findings by rule")
-        st.bar_chart(
-            pd.DataFrame(summarize_finding_rules(findings)),
-            x="rule",
-            y="count",
+        st.markdown("#### Findings by OWASP category")
+        by_category = (
+            pd.DataFrame(
+                [{"OWASP": f["owasp"], "Severity": f["severity"].upper()} for f in findings]
+            )
+            .value_counts()
+            .reset_index(name="Findings")
         )
+        fig_bar = px.bar(
+            by_category,
+            x="Findings",
+            y="OWASP",
+            color="Severity",
+            orientation="h",
+            color_discrete_map=SEVERITY_COLORS,
+            category_orders={"Severity": list(SEVERITY_COLORS)},
+        )
+        fig_bar.update_yaxes(title=None, categoryorder="total ascending")
+        fig_bar.update_xaxes(dtick=1, gridcolor="rgba(128,128,128,0.2)")
+        fig_bar.update_traces(width=0.5)
+        height = 90 + 40 * by_category["OWASP"].nunique()
+        st.plotly_chart(style_chart(fig_bar, height=height), width="stretch")
 
     latest = merchant_report["latest_simulation"]
     if latest:
