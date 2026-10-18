@@ -13,6 +13,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth.rate_limit import ALL_LIMITERS
 from app.database import (
     companies_collection,
     customers_collection,
@@ -40,6 +41,8 @@ def api_client():
     users_collection.truncate()
     targets_collection.truncate()
     sessions_collection.truncate()
+    for limiter in ALL_LIMITERS:
+        limiter.reset()
     from app.main import app
 
     with TestClient(app) as client:

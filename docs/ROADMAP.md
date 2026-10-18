@@ -22,7 +22,7 @@ itself is secure; a security tool with security holes undermines itself.
 - [x] Pin dependency versions; add `ruff` lint to CI.
 - [x] `docker compose up` runs backend + dashboard with one command.
 - [x] Run simulations in the background (`BackgroundTasks`); poll run status.
-- [ ] Rate-limit login, register, and forgot-password.
+- [x] Rate-limit login, register, and forgot-password.
 - [ ] Replace deprecated `@app.on_event` with a `lifespan` handler.
 
 ## Phase 3 — Differentiators (what makes it a product)

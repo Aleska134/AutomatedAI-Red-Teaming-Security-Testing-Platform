@@ -16,10 +16,9 @@ Findings from the project review and the reasoning behind the
 
 | Risk | Why it matters | Planned fix |
 | :--- | :--- | :--- |
-| No auth rate limiting | Password brute force / reset spam | Phase 2 |
+| In-memory auth rate limits | Per process; behind a proxy the client IP must come from trusted proxy headers | Shared store (e.g. Redis) and proxy config at deploy (Phase 4) |
 | DNS rebinding on webhooks | Host can resolve public at check time, private at request time | Pin the resolved IP for the request |
 | Shared demo inventory | Sandbox carts are per company, but product stock is global | Per-tenant catalog or reset per run |
-| Synchronous simulations | Up to ~3 LLM calls per turn inside one HTTP request | Background tasks (Phase 2) |
 
 ## Evaluation quality
 
