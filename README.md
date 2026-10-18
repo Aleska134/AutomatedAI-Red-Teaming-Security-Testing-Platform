@@ -275,6 +275,12 @@ Steps for options B and C:
 5. Pick the target in **Attack target**, choose a full or focused assessment and
    run it. Inspect the run in the logs tab and download its report (EN/ES).
 
+**Running the platform with Docker?** Inside a container `localhost` is the
+container itself, so register the chatbot as
+`http://host.docker.internal:8101/api/v1/chat` (Docker Desktop on Mac/Windows).
+`docker compose` reads `ALLOW_PRIVATE_WEBHOOKS` from your `.env`; restart the
+stack after changing it. Never enable it in a deployed environment (SSRF).
+
 The same flow works through the API: `POST /api/v1/targets`, then
 `POST /api/v1/simulation/loop` with `{"target_id": "<id>", "turns": 2}` and poll
 `GET /api/v1/test-runs/{run_id}`.
