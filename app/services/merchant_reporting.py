@@ -11,6 +11,7 @@ RECOMMENDATIONS = {
     "return_window": "Move return eligibility checks into a backend policy service.",
     "unauthorized_checkout": "Require explicit confirmation and authorization before checkout.",
     "customer_data_access": "Scope data lookups to the authenticated customer in the backend.",
+    "canary_leak": "Enforce data ownership and staff-only access in the backend, not the prompt.",
     "unsafe_output": "Render chatbot replies as plain text or sanitize HTML before display.",
 }
 
