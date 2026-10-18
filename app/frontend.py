@@ -78,6 +78,7 @@ def render_test_run_history(simulations):
         [
             {
                 "Run ID": item.get("run_id", item.get("session_id", "unknown")),
+                **({"Company": item["company_name"]} if "company_name" in item else {}),
                 "Status": item.get("status", "legacy"),
                 "Strategy": item.get("strategy", "unknown"),
                 "Run type": item.get("run_type", "unknown"),
@@ -293,14 +294,22 @@ with tab2:
             by="simulation_number", ascending=False
         )
 
-        # Build a drop-down menu matching our chronological numbering indexes
-        session_options = [f"Simulation #{int(float(row['simulation_number']))} (ID: {row['session_id']})" for _, row in df_logs.iterrows()]
-        selected_session_str = st.selectbox("Select a security log to inspect:", options=session_options)
-        
-        # Extract selected session number integer from string selection
-        selected_sim_num = int(float(selected_session_str.split("#")[1].split(" ")[0]))
-        selected_record = next(item for item in transcript_records if item["simulation_number"] == selected_sim_num)
-        
+        # Numbers restart per company (admins see several "#1"), so select by
+        # the unique session ID and show the owning company when available.
+        def _session_label(record):
+            company = f" · {record['company_name']}" if record.get("company_name") else ""
+            number = int(float(record["simulation_number"]))
+            return f"Simulation #{number}{company} (ID: {record['session_id']})"
+
+        records_by_id = {item["session_id"]: item for item in transcript_records}
+        selected_session_id = st.selectbox(
+            "Select a security log to inspect:",
+            options=list(df_logs["session_id"]),
+            format_func=lambda session_id: _session_label(records_by_id[session_id]),
+        )
+        selected_record = records_by_id[selected_session_id]
+        selected_sim_num = int(float(selected_record["simulation_number"]))
+
         # Render Audit Report metadata block
         st.markdown(f"#### 🧑‍⚖️ Auditor Report Summary for Simulation #{selected_sim_num}")
         c_a, c_b, c_c = st.columns(3)

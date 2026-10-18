@@ -204,6 +204,10 @@ password revokes every previously issued JWT.
 
 All simulation, webhook, and data endpoints now require an active company. A
 company only ever sees its own records; admins retain a full cross-company view.
+Simulation numbers restart per company (each starts at #1), so in the admin view
+every record carries a `company_name`, and `GET /api/v1/simulations/number/{n}`
+takes an optional `company_id` query parameter (admins only; defaults to the
+caller's own company).
 
 ### Connecting the reference chatbot target
 
