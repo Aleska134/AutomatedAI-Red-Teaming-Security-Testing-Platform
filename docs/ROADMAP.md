@@ -38,8 +38,8 @@ itself is secure; a security tool with security holes undermines itself.
       obfuscated / multilingual attacks (LLM01), another customer's data (LLM02),
       dangerous output such as `<script>` or `javascript:` links (LLM05), and tool
       abuse checked via tool events and the target's `forbidden_actions` (LLM06).
-      Later: injection through real tool output (needs a poisoned sandbox catalog).
-- [ ] Realistic mock company data in the reference chatbot (AI-Chatbot repo):
+      Injection through real tool output: see the poisoned review in AI-Chatbot.
+- [x] Realistic mock company data in the reference chatbot (AI-Chatbot repo):
       seeded SQLite with fake customers, orders, inventory (cost/supplier),
       internal notes and staff codes; weak mode skips ownership checks (IDOR),
       hardened mode enforces them; a poisoned product review for real indirect
