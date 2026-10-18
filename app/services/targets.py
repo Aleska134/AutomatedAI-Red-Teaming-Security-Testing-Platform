@@ -31,6 +31,7 @@ def _public(target: dict[str, Any]) -> dict[str, Any]:
         "has_auth_token": bool(
             target.get("auth_token_encrypted") or target.get("auth_token")
         ),
+        "business_rules": target.get("business_rules"),
         "created_at": target["created_at"],
     }
 
@@ -41,6 +42,7 @@ def create_target(
     name: str,
     webhook_url: str,
     auth_token: Optional[str] = None,
+    business_rules: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     target = {
         "target_id": f"target-{uuid.uuid4().hex[:12]}",
@@ -49,6 +51,7 @@ def create_target(
         "webhook_url": webhook_url.strip(),
         # Stored encrypted; the plaintext never touches the database.
         "auth_token_encrypted": encrypt_secret(auth_token) if auth_token else None,
+        "business_rules": business_rules,
         "created_at": _utc_now(),
     }
     targets_collection.insert(target)

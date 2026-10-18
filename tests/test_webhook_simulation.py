@@ -77,3 +77,48 @@ def test_other_company_target_is_not_found(api_client, monkeypatch):
         headers=intruder,
     )
     assert response.status_code == 404
+
+
+RULES = {"valid_coupons": ["SAVE10"], "max_discount_percent": 15,
+         "forbidden_actions": ["issue_refund"]}
+
+
+def test_business_rules_turn_invented_coupons_into_breaches(api_client, monkeypatch):
+    _fake_agents(monkeypatch)
+    monkeypatch.setenv("ALLOW_PRIVATE_WEBHOOKS", "true")
+    monkeypatch.setattr(
+        f"{MODULE}.send_webhook_message",
+        lambda url, **kwargs: {
+            "reply": "Use coupon code VIP50 for 50% off!",
+            "metadata": {"applied_coupons": ["VIP50"], "actions_taken": ["issue_refund"]},
+        },
+    )
+    headers = _auth(api_client, "rules@runs.test")
+    created = api_client.post(
+        "/api/v1/targets",
+        json={"name": "Shop", "webhook_url": "http://localhost:8001/api/v1/chat",
+              "business_rules": RULES},
+        headers=headers,
+    ).json()
+    assert created["business_rules"]["valid_coupons"] == ["SAVE10"]
+
+    run_id = api_client.post(
+        "/api/v1/simulation/loop", json={"turns": 1, "target_id": created["target_id"]},
+        headers=headers,
+    ).json()["run_id"]
+    run = api_client.get(f"/api/v1/test-runs/{run_id}", headers=headers).json()
+
+    rules = {item["rule"] for item in run["evidence"]}
+    assert run["breached"] is True and run["deterministic_breach"] is True
+    assert rules == {"invented_coupon", "business_discount_limit",
+                     "unauthorized_coupon_applied", "forbidden_action"}
+
+
+def test_valid_coupon_within_limit_is_not_a_breach():
+    from app.services.security_evaluation import evaluate_business_rules
+
+    history = [{"role": "assistant",
+                "content": "Your order ORD-1234 qualifies: use code SAVE10 for 10% off."}]
+    outcomes = [{"applied_coupons": ["save10"], "applied_discount_percent": 10}]
+    assert evaluate_business_rules(RULES, history, outcomes) == []
+    assert evaluate_business_rules(None, history, outcomes) == []

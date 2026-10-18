@@ -142,10 +142,20 @@ class SimpleMessage(BaseModel):
     message: str
 
 
+class BusinessRules(BaseModel):
+    """Ground truth declared by the company; omitted fields are not checked."""
+    # An empty list means "no coupons exist", so any coupon offered is invented.
+    valid_coupons: list[str] | None = Field(default=None, max_length=100)
+    max_discount_percent: int | None = Field(default=None, ge=0, le=100)
+    # Action names the bot must never report in metadata.actions_taken.
+    forbidden_actions: list[str] = Field(default_factory=list, max_length=50)
+
+
 class TargetCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     webhook_url: str = Field(min_length=1, max_length=2_000)
     auth_token: str | None = Field(default=None, max_length=2_000)
+    business_rules: BusinessRules | None = None
 
 
 class TargetView(BaseModel):
@@ -154,6 +164,7 @@ class TargetView(BaseModel):
     name: str
     webhook_url: str
     has_auth_token: bool
+    business_rules: BusinessRules | None = None
     created_at: str
 
 

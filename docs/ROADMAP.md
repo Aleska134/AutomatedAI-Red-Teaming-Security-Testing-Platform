@@ -29,7 +29,7 @@ itself is secure; a security tool with security holes undermines itself.
 
 - [x] Run the adaptive multi-turn attacker against **external webhook targets**,
       not just the built-in Defender.
-- [ ] Per-target **business rules** declared by the company (valid coupons, max
+- [x] Per-target **business rules** declared by the company (valid coupons, max
       discount, forbidden actions) checked deterministically against replies and
       metadata, so invented or unauthorized discounts are proven breaches.
 - [ ] Map every finding to the **OWASP Top 10 for LLM Applications** (LLM01, …).
