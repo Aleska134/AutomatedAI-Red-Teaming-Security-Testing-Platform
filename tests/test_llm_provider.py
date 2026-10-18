@@ -48,3 +48,32 @@ def test_gemini_contents_maps_roles():
     assert contents[0].role == "user"
     # OpenAI's "assistant" role maps to Gemini's "model" role.
     assert contents[1].role == "model"
+    # The request must end on a user turn, so a continuation prompt is appended.
+    assert contents[-1].role == "user"
+
+
+def test_gemini_contents_empty_history_gets_user_turn():
+    pytest.importorskip("google.genai")
+    contents = llm_provider._gemini_contents([])
+    # Gemini rejects empty requests; we must send at least one user turn.
+    assert len(contents) == 1
+    assert contents[0].role == "user"
+
+
+def test_gemini_contents_ending_in_user_is_unchanged():
+    pytest.importorskip("google.genai")
+    contents = llm_provider._gemini_contents(
+        [{"role": "user", "content": "attack please"}]
+    )
+    assert len(contents) == 1
+    assert contents[0].role == "user"
+
+
+def test_gemini_contents_skips_empty_messages():
+    pytest.importorskip("google.genai")
+    contents = llm_provider._gemini_contents(
+        [{"role": "user", "content": ""}]
+    )
+    # The empty message is skipped, then a continuation user turn is added.
+    assert len(contents) == 1
+    assert contents[0].role == "user"
