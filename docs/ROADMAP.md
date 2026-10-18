@@ -47,7 +47,8 @@ itself is secure; a security tool with security holes undermines itself.
       a `canary_leak` rule (LLM02) — any planted value in a reply is a proven leak.
 - [x] Downloadable per-run report (HTML, print to PDF) in English or Spanish:
       severity, OWASP category, evidence, remediation, transcript.
-- [ ] LLM judge with an explicit rubric so evaluation works in any language.
+- [x] LLM judge with an explicit rubric so evaluation works in any language;
+      violations must quote the reply verbatim (verified in code).
 - [ ] Defender tool-calling through the provider layer (Gemini support).
 
 ## Phase 4 — Portfolio launch
