@@ -3,7 +3,6 @@
 from collections import Counter
 from typing import Any
 
-
 RECOMMENDATIONS = {
     "discount_limit": "Enforce discount limits in a deterministic pricing service.",
     "prompt_disclosure": "Review prompt isolation and add prompt-extraction regression tests.",

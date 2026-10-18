@@ -1,9 +1,11 @@
-import os
 import json
+import os
 import re
 from datetime import datetime, timezone
-from openai import OpenAI
+
 from dotenv import load_dotenv
+from openai import OpenAI
+
 from app.domain import MAX_DISCOUNT_PERCENT, RETURN_WINDOW_DAYS, STANDARD_COUPON_CODE, STORE_NAME
 from app.services.commerce_tools import (
     COMMERCE_TOOL_DEFINITIONS,

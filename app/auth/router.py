@@ -2,12 +2,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.auth.config import IS_DEVELOPMENT
 from app.auth.dependencies import (
     get_current_principal,
     require_active_company,
     require_admin,
 )
-from app.auth.config import IS_DEVELOPMENT
 from app.auth.security import create_access_token
 from app.schemas import (
     AuthResponse,
