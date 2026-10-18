@@ -252,12 +252,17 @@ volume (`docker compose down -v` wipes it). To attack a chatbot running on your
 host, use `http://host.docker.internal:<port>/...` as the target URL and set
 `ALLOW_PRIVATE_WEBHOOKS=true` in `.env`.
 
+Stop the stack with `Ctrl+C` (or `docker compose down` if started with `-d`),
+and follow a service's output with `docker compose logs -f backend`. After
+changing code or `requirements.txt`, run `docker compose up --build` again.
+
 The manual setup below is still the best option for development (hot reload).
 
 ### Requirements
 
-- Python 3.11 or newer.
-- An OpenAI API key for LLM-powered chat and simulations.
+- Python 3.11 or newer, or Docker (see the quick start above).
+- An OpenAI API key, or a Gemini API key with `LLM_PROVIDER=gemini` (see
+  [Choosing an LLM provider](#choosing-an-llm-provider)).
 
 ### Installation
 
