@@ -420,9 +420,11 @@ This is a security tool, so the platform itself is hardened. Phase 1 of the
 | Unconfirmed purchases | Purchase intent alone does not authorize checkout |
 | Tests wiping local data | Configurable `DATABASE_URL`; tests use a temporary database |
 | Data corruption under concurrent writes | SQL database (SQLModel); each write is its own transaction |
+| Password brute force / reset spam | Per-IP limits: login 10/min, register 5/hour, forgot-password 5/15 min (`429` + `Retry-After`) |
 
-Known limitations (planned): no rate limiting on auth endpoints yet, the SSRF
-check is vulnerable to DNS rebinding between validation and request. See
+Known limitations (planned): rate limits are kept in memory, so they are per
+process and reset on restart; the SSRF check is vulnerable to DNS rebinding
+between validation and request. See
 [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
 
 ## Project status and roadmap

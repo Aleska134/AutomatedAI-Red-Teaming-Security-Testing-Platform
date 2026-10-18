@@ -8,6 +8,11 @@ from app.auth.dependencies import (
     require_active_company,
     require_admin,
 )
+from app.auth.rate_limit import (
+    forgot_password_limiter,
+    login_limiter,
+    register_limiter,
+)
 from app.auth.security import create_access_token
 from app.schemas import (
     AuthResponse,
@@ -69,7 +74,12 @@ def _auth_response(user: dict, company: dict) -> AuthResponse:
     )
 
 
-@router.post("/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/auth/register",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(register_limiter)],
+)
 def register(payload: RegisterRequest):
     try:
         register_company(
@@ -87,7 +97,7 @@ def register(payload: RegisterRequest):
     return _auth_response(user, company)
 
 
-@router.post("/auth/login", response_model=AuthResponse)
+@router.post("/auth/login", response_model=AuthResponse, dependencies=[Depends(login_limiter)])
 def login(payload: LoginRequest):
     try:
         result = authenticate(payload.email, payload.password)
@@ -126,7 +136,11 @@ def change_my_password(
     return SimpleMessage(message="Password updated successfully.")
 
 
-@router.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
+@router.post(
+    "/auth/forgot-password",
+    response_model=ForgotPasswordResponse,
+    dependencies=[Depends(forgot_password_limiter)],
+)
 def forgot_password(payload: ForgotPasswordRequest):
     """Start a password reset (no authentication required).
 
