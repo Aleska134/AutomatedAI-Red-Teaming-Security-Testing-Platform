@@ -23,7 +23,7 @@ itself is secure; a security tool with security holes undermines itself.
 - [x] `docker compose up` runs backend + dashboard with one command.
 - [x] Run simulations in the background (`BackgroundTasks`); poll run status.
 - [x] Rate-limit login, register, and forgot-password.
-- [ ] Replace deprecated `@app.on_event` with a `lifespan` handler.
+- [x] Replace deprecated `@app.on_event` with a `lifespan` handler.
 
 ## Phase 3 — Differentiators (what makes it a product)
 
