@@ -41,6 +41,16 @@ discount above the declared maximum is a deterministic breach (OWASP LLM08
 Excessive Agency / LLM09 Misinformation). If the target also reports what it
 actually applied in `metadata`, claims can be compared with actions.
 
+## Attack coverage
+
+Prefer scenarios that end in a deterministic proof over ones that need the Judge's
+opinion. Next additions: indirect injection hidden in tool output (product reviews,
+order notes), the same attacks obfuscated or in other languages, requests for
+another customer's data, replies containing executable HTML/links, and tool abuse
+(negative quantities, acting on orders the user does not own). Later: invented
+policies (extend `business_rules` with forbidden promises), unbounded output
+length, and brand safety. LLM03, LLM04 and LLM08 cannot be tested from a webhook.
+
 ## Deployment: Heroku + Neon
 
 A good fit for this project: Heroku is covered by the GitHub Student Developer

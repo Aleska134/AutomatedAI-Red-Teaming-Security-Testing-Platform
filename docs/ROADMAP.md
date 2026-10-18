@@ -34,6 +34,11 @@ itself is secure; a security tool with security holes undermines itself.
       metadata, so invented or unauthorized discounts are proven breaches.
 - [x] Map every finding to the **OWASP Top 10 for LLM Applications** (LLM01, …).
 - [ ] Downloadable per-run report (HTML/PDF): severity, evidence, remediation.
+- [ ] Broaden attack coverage, each scenario with its own deterministic rule:
+      indirect prompt injection via tool output (LLM01), obfuscated / multilingual
+      attacks (LLM01), another customer's data (LLM02), dangerous output such as
+      `<script>` or `javascript:` links (LLM05), and tool abuse — negative
+      quantities, editing or cancelling someone else's order (LLM06).
 - [ ] LLM judge with an explicit rubric so evaluation works in any language.
 - [ ] Defender tool-calling through the provider layer (Gemini support).
 
