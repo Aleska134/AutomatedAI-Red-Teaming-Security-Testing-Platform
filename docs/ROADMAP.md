@@ -49,10 +49,11 @@ itself is secure; a security tool with security holes undermines itself.
       severity, OWASP category, evidence, remediation, transcript.
 - [x] LLM judge with an explicit rubric so evaluation works in any language;
       violations must quote the reply verbatim (verified in code).
-- [ ] Defender tool-calling through the provider layer (Gemini support).
 
 ## Phase 4 — Portfolio launch
 
+- [ ] Defender tool-calling through the provider layer (Gemini support), moved
+      from Phase 3. See [DEVELOPMENT.md](DEVELOPMENT.md#next-step-gemini-tool-calling).
 - [ ] Deploy on **Heroku** (GitHub Student Pack credits) + **Neon** Postgres (free
       tier) with a public demo account and sample data. See
       [deployment notes](RECOMMENDATIONS.md#deployment-heroku--neon).
