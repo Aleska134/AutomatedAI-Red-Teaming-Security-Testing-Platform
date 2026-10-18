@@ -21,7 +21,7 @@ itself is secure; a security tool with security holes undermines itself.
       (selected by `DATABASE_URL`; safe under concurrency).
 - [x] Pin dependency versions; add `ruff` lint to CI.
 - [x] `docker compose up` runs backend + dashboard with one command.
-- [ ] Run simulations in the background (`BackgroundTasks`); poll run status.
+- [x] Run simulations in the background (`BackgroundTasks`); poll run status.
 - [ ] Rate-limit login, register, and forgot-password.
 - [ ] Replace deprecated `@app.on_event` with a `lifespan` handler.
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -91,19 +92,30 @@ def render_test_run_history(simulations):
     )
 
 
-def run_security_test(strategy, turns):
-    """Run one merchant-requested security test through the existing API."""
-    # Each turn makes several bounded LLM calls (now capped per request on the
-    # backend), so allow generous headroom for multi-turn runs.
+def run_security_test(strategy, turns, poll_interval=2, max_wait=300):
+    """Queue one security test, then poll its run until it finishes."""
     response = api_post(
         API_BASE_URL,
         "/simulation/loop",
         json={"turns": turns, "strategy": strategy, "history": []},
-        timeout=300,
+        timeout=30,
     )
-    if response.status_code != 200:
+    if response.status_code != 202:
         raise RuntimeError(response.text)
-    return response.json()
+    run_id = response.json()["run_id"]
+
+    deadline = time.monotonic() + max_wait
+    while time.monotonic() < deadline:
+        time.sleep(poll_interval)
+        response = api_get(API_BASE_URL, f"/test-runs/{run_id}", timeout=30)
+        if response.status_code != 200:
+            raise RuntimeError(response.text)
+        run = response.json()
+        if run["status"] == "completed":
+            return {**run, "is_breached": run.get("breached", False)}
+        if run["status"] == "failed":
+            raise RuntimeError(run.get("error") or "The security test failed.")
+    raise RuntimeError(f"Test run {run_id} is still running; check the history later.")
 
 
 def run_webhook_scope_test(webhook_url, auth_token):

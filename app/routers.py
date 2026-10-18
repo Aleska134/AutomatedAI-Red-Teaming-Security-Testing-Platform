@@ -1,11 +1,8 @@
 import uuid
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from app.agents.attacker import generate_attack_payload_result
 from app.agents.defender import query_defender
-from app.agents.judge import evaluate_simulation
 from app.auth.dependencies import require_active_company
 from app.database import sessions_collection
 from app.schemas import (
@@ -13,8 +10,8 @@ from app.schemas import (
     CheckoutRequest,
     CustomerChatRequest,
     CustomerChatResponse,
-    LoopSimulationResponse,
     SimulationLoopRequest,
+    SimulationQueuedResponse,
     WebhookTestRequest,
     WebhookTestResponse,
 )
@@ -26,18 +23,9 @@ from app.services.commerce import (
     get_or_create_cart,
     search_products,
 )
-from app.services.security_evaluation import (
-    assess_conclusiveness,
-    evaluate_webhook_metadata,
-)
-from app.services.test_runs import (
-    complete_test_run,
-    create_test_run,
-    fail_test_run,
-    get_test_run,
-    list_test_runs,
-    start_test_run,
-)
+from app.services.security_evaluation import evaluate_webhook_metadata
+from app.services.simulation_loop import execute_simulation_run
+from app.services.test_runs import create_test_run, get_test_run, list_test_runs
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 router = APIRouter(
@@ -159,123 +147,44 @@ def test_webhook_integration(
         "metadata_available": evaluation.get("metadata_available", False),
     }
 
-@router.post("/simulation/loop", response_model=LoopSimulationResponse)
+@router.post(
+    "/simulation/loop",
+    response_model=SimulationQueuedResponse,
+    status_code=202,
+    summary="Queue an attacker-versus-defender simulation",
+)
 def run_automated_simulation_loop(
     payload: SimulationLoopRequest,
+    background_tasks: BackgroundTasks,
     principal: dict = Depends(require_active_company),
 ):
     """
-    Executes a multi-turn adversarial simulation loop where the attacker
-    is bound to a user-selected offensive red-teaming strategy.
+    Queues a multi-turn adversarial simulation bound to the selected strategy.
+    It runs in the background; poll ``GET /test-runs/{run_id}`` for its status.
     """
     company_id = principal["company"]["company_id"]
-    session_id = f"loop-{uuid.uuid4().hex[:8]}"
-    run_record = create_test_run(
-        run_id=session_id,
+    run_id = f"loop-{uuid.uuid4().hex[:8]}"
+    record = create_test_run(
+        run_id=run_id,
         strategy=payload.strategy,
         turns_requested=payload.turns,
         company_id=company_id,
     )
-    run_record = start_test_run(session_id)
-    current_history = [message.model_dump() for message in payload.history]
-    tool_events: list[dict] = []
-    defense_outcomes: list[dict] = []
-    attack_generation_events: list[dict] = []
-    turns_executed = 0
-    
-    try:
-        for turn in range(payload.turns):
-            turns_executed += 1
-            attack_result = generate_attack_payload_result(
-                current_history,
-                strategy=payload.strategy,
-            )
-            attacker_message = attack_result["payload"]
-            attack_generation_events.append(
-                {
-                    **attack_result,
-                    "turn": turns_executed,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            current_history.append({"role": "user", "content": attacker_message})
-            outcome: dict = {}
-            defender_reply = query_defender(
-                attacker_message,
-                current_history[:-1],
-                customer_id=_sandbox_customer(principal),
-                tool_events=tool_events,
-                defense_outcome=outcome,
-            )
-            defense_outcomes.append(outcome)
-            current_history.append({"role": "assistant", "content": defender_reply})
-
-        audit_report = evaluate_simulation(current_history, tool_events)
-        # Numbered per company so tenants cannot infer each other's activity.
-        next_simulation_number = sum(
-            1 for r in sessions_collection.all() if r.get("company_id") == company_id
-        )
-        session_record = {
-            **run_record,
-            "simulation_number": next_simulation_number,
-            "total_turns": turns_executed,
-            "history": current_history,
-            "breached": audit_report.get("breached", False),
-            "confidence_score": audit_report.get("confidence_score", 0.0),
-            "attacker_aggression_level": audit_report.get("attacker_aggression_level", 1),
-            "defense_efficiency_score": audit_report.get("defense_efficiency_score", 10),
-            "attack_vector_keywords": audit_report.get("attack_vector_keywords", []),
-            "analysis": audit_report.get("analysis", "No analysis provided."),
-            "deterministic_breach": audit_report.get("deterministic_breach", False),
-            "evidence": audit_report.get("evidence", []),
-            "tool_events": tool_events,
-            "defense_outcomes": defense_outcomes,
-            "attack_generation_events": attack_generation_events,
-            **assess_conclusiveness(defense_outcomes, audit_report),
-        }
-        # The identifiers are passed positionally; drop them from the payload so
-        # they do not collide with the ``run_id`` parameter during binding.
-        session_record.pop("run_id", None)
-        session_record.pop("session_id", None)
-        session_record = complete_test_run(session_id, **session_record)
-        return {
-            "session_id": session_id,
-            "run_id": session_id,
-            "status": session_record["status"],
-            "run_type": session_record["run_type"],
-            "strategy": session_record["strategy"],
-            "created_at": session_record["created_at"],
-            "started_at": session_record["started_at"],
-            "completed_at": session_record["completed_at"],
-            "simulation_number": session_record["simulation_number"],
-            "total_turns_executed": turns_executed,
-            "is_breached": session_record["breached"],
-            "attacker_aggression_level": session_record["attacker_aggression_level"],
-            "defense_efficiency_score": session_record["defense_efficiency_score"],
-            "attack_vector_keywords": session_record["attack_vector_keywords"],
-            "audit_analysis": session_record["analysis"],
-            "confidence": session_record["confidence_score"],
-            "deterministic_breach": session_record["deterministic_breach"],
-            "evidence": session_record["evidence"],
-            "tool_events": session_record["tool_events"],
-            "defense_outcomes": session_record["defense_outcomes"],
-            "attack_generation_events": session_record["attack_generation_events"],
-            "conclusive": session_record["conclusive"],
-            "inconclusive_reason": session_record["inconclusive_reason"],
-            "full_chat_history": current_history,
-        }
-    except Exception as error:
-        # Mark the run failed and return a clear, non-leaking message instead of
-        # an opaque 500 so the dashboard can explain what happened.
-        fail_test_run(session_id, str(error))
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "The security simulation could not be completed. This usually "
-                "means the LLM provider is unavailable or its API key is not "
-                "configured. Deterministic checks still ran where possible."
-            ),
-        ) from error
+    background_tasks.add_task(
+        execute_simulation_run,
+        run_id,
+        strategy=payload.strategy,
+        turns=payload.turns,
+        history=[message.model_dump() for message in payload.history],
+        company_id=company_id,
+        customer_id=_sandbox_customer(principal),
+    )
+    return {
+        "run_id": run_id,
+        "session_id": run_id,
+        "status": record["status"],
+        "created_at": record["created_at"],
+    }
 
 # --- History and Analytics Queries (Data Layer) ---
 

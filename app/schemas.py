@@ -35,31 +35,11 @@ class SimulationLoopRequest(BaseModel):
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
 
 
-class LoopSimulationResponse(BaseModel):
-    session_id: str
+class SimulationQueuedResponse(BaseModel):
     run_id: str
-    status: Literal["queued", "completed", "failed", "running"] = "completed"
-    run_type: str = "manual"
-    strategy: str
+    session_id: str
+    status: Literal["queued", "running", "completed", "failed"]
     created_at: str
-    started_at: str
-    completed_at: str | None = None
-    simulation_number: int
-    total_turns_executed: int
-    is_breached: bool
-    attacker_aggression_level: int
-    defense_efficiency_score: int
-    attack_vector_keywords: list[str]
-    audit_analysis: str
-    confidence: float
-    deterministic_breach: bool = False
-    evidence: list[dict[str, str]] = Field(default_factory=list)
-    tool_events: list[dict] = Field(default_factory=list)
-    defense_outcomes: list[dict] = Field(default_factory=list)
-    attack_generation_events: list[dict] = Field(default_factory=list)
-    conclusive: bool = True
-    inconclusive_reason: str | None = None
-    full_chat_history: list[ChatMessage]
 
 
 class TestRunSummary(BaseModel):
