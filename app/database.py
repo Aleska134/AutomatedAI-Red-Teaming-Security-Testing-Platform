@@ -21,8 +21,10 @@ load_dotenv()
 def _database_url() -> str:
     url = os.getenv("DATABASE_URL", "sqlite:///local.db")
     # Heroku still exposes the legacy scheme, which SQLAlchemy rejects.
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
+    # SQLAlchemy now defaults plain "postgresql://" to psycopg 3; we ship psycopg2.
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
     return url
 
 
