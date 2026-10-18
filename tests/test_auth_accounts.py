@@ -222,3 +222,19 @@ def test_target_auth_token_is_encrypted_at_rest(api_client):
     assert "s3cret-token" not in str(stored)
     assert get_target(company_id, created["target_id"])["auth_token"] == "s3cret-token"
 
+
+
+def test_startup_uses_lifespan_not_deprecated_on_event(monkeypatch):
+    """Startup work runs through the lifespan handler when the app starts."""
+    from fastapi.testclient import TestClient
+
+    import app.main as main
+
+    calls = []
+    monkeypatch.setattr(main, "seed_commerce_data", lambda: calls.append("seed"))
+    monkeypatch.setattr(main, "ensure_admin_user", lambda: calls.append("admin"))
+    assert not main.app.router.on_startup
+
+    with TestClient(main.app):
+        pass
+    assert calls == ["seed", "admin"]
