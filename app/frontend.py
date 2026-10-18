@@ -95,14 +95,12 @@ def render_test_run_history(simulations):
     )
 
 
-def run_security_test(strategy, turns, poll_interval=2, max_wait=300):
+def run_security_test(strategy, turns, target_id=None, poll_interval=2, max_wait=300):
     """Queue one security test, then poll its run until it finishes."""
-    response = api_post(
-        API_BASE_URL,
-        "/simulation/loop",
-        json={"turns": turns, "strategy": strategy, "history": []},
-        timeout=30,
-    )
+    payload = {"turns": turns, "strategy": strategy, "history": []}
+    if target_id:
+        payload["target_id"] = target_id
+    response = api_post(API_BASE_URL, "/simulation/loop", json=payload, timeout=30)
     if response.status_code != 202:
         raise RuntimeError(response.text)
     run_id = response.json()["run_id"]
@@ -119,6 +117,50 @@ def run_security_test(strategy, turns, poll_interval=2, max_wait=300):
         if run["status"] == "failed":
             raise RuntimeError(run.get("error") or "The security test failed.")
     raise RuntimeError(f"Test run {run_id} is still running; check the history later.")
+
+
+def _split_list(raw):
+    """Comma-separated text field -> list of non-empty values."""
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def fetch_targets():
+    response = api_get(API_BASE_URL, "/targets", timeout=30)
+    return response.json() if response.status_code == 200 else []
+
+
+def render_target_form():
+    """Register an external chatbot (webhook) with its business rules."""
+    with st.expander("➕ Register a chatbot target"):
+        with st.form("create_target", clear_on_submit=True):
+            name = st.text_input("Name", placeholder="TechMart weak")
+            url = st.text_input("Webhook URL", placeholder="http://localhost:8101/api/v1/chat")
+            token = st.text_input("Bearer token (optional)", type="password")
+            st.caption("Business rules (optional, comma-separated)")
+            coupons = st.text_input("Valid coupons", placeholder="TECH10")
+            max_discount = st.number_input("Max discount %", 0, 100, 10)
+            forbidden = st.text_input("Forbidden actions", placeholder="issue_refund, change_price")
+            protected = st.text_input(
+                "Protected values (canaries)",
+                placeholder="jordan.demo@techmart.local, CNRY-8841, STAFF-7Q2X",
+            )
+            if st.form_submit_button("Save target"):
+                payload = {
+                    "name": name,
+                    "webhook_url": url,
+                    "auth_token": token or None,
+                    "business_rules": {
+                        "valid_coupons": _split_list(coupons) or None,
+                        "max_discount_percent": int(max_discount),
+                        "forbidden_actions": _split_list(forbidden),
+                        "protected_values": _split_list(protected),
+                    },
+                }
+                response = api_post(API_BASE_URL, "/targets", json=payload, timeout=30)
+                if response.status_code == 201:
+                    st.success(f"Target '{name}' saved.")
+                else:
+                    st.error(f"Could not save target: {response.text}")
 
 
 def run_webhook_scope_test(webhook_url, auth_token):
@@ -437,6 +479,17 @@ with tab3:
             key="merchant_simulation_turns",
         )
 
+    render_target_form()
+    targets = fetch_targets()
+    target_options = [None] + [t["target_id"] for t in targets]
+    target_names = {t["target_id"]: f"{t['name']} ({t['webhook_url']})" for t in targets}
+    selected_target = st.selectbox(
+        "Attack target",
+        options=target_options,
+        format_func=lambda tid: target_names.get(tid, "Built-in Defender (simulator)"),
+        key="merchant_target",
+    )
+
     selected_category = None
     if assessment_mode == "Focused Test":
         selected_category = st.selectbox(
@@ -448,7 +501,8 @@ with tab3:
     scenarios = [
         scenario
         for scenario in get_scenarios(selected_category)
-        if getattr(scenario, "execution_mode", "simulator") == "simulator"
+        # A saved target can run every scenario; the simulator skips webhook-only ones.
+        if selected_target or getattr(scenario, "execution_mode", "simulator") == "simulator"
     ]
     st.markdown("#### Included simulator scenarios")
     if not scenarios:
@@ -476,7 +530,7 @@ with tab3:
         with st.spinner(f"Running {len(scenarios)} security scenario(s)..."):
             try:
                 results = [
-                    run_security_test(scenario.strategy, int(merchant_turns))
+                    run_security_test(scenario.strategy, int(merchant_turns), selected_target)
                     for scenario in scenarios
                 ]
                 breached = sum(result.get("is_breached", False) for result in results)
