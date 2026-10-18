@@ -1,4 +1,8 @@
-"""Background execution of attacker-versus-defender simulation runs."""
+"""Background execution of attacker-versus-defender simulation runs.
+
+The defender is either the built-in Defender or a saved external chatbot
+reached through the v1 webhook contract.
+"""
 
 import logging
 from datetime import datetime, timezone
@@ -9,6 +13,7 @@ from app.agents.judge import evaluate_simulation
 from app.database import sessions_collection
 from app.services.security_evaluation import assess_conclusiveness
 from app.services.test_runs import complete_test_run, fail_test_run, start_test_run
+from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +21,9 @@ FAILURE_MESSAGE = (
     "The security simulation could not be completed. This usually means the "
     "LLM provider is unavailable or its API key is not configured."
 )
+
+# External chatbots commonly cap the history they accept; send only recent turns.
+WEBHOOK_HISTORY_LIMIT = 20
 
 
 def execute_simulation_run(
@@ -26,6 +34,7 @@ def execute_simulation_run(
     history: list[dict],
     company_id: str,
     customer_id: str,
+    target: dict | None = None,
 ) -> None:
     """Run a queued simulation to completion, persisting its outcome.
 
@@ -33,13 +42,31 @@ def execute_simulation_run(
     ``failed``) instead of being raised to a client.
     """
     try:
-        _run(run_id, strategy, turns, history, company_id, customer_id)
+        _run(run_id, strategy, turns, history, company_id, customer_id, target)
+    except WebhookAdapterError as error:
+        # Adapter messages are generic and safe to show the tenant.
+        logger.warning("Simulation run %s: target unreachable", run_id)
+        fail_test_run(run_id, f"The target chatbot failed: {error}")
     except Exception:
         logger.exception("Simulation run %s failed", run_id)
         fail_test_run(run_id, FAILURE_MESSAGE)
 
 
-def _run(run_id, strategy, turns, history, company_id, customer_id) -> None:
+def _query_target(target: dict, message: str, history: list[dict], outcome: dict) -> str:
+    """Send one attack turn to an external chatbot and record its reported outcome."""
+    result = send_webhook_message(
+        target["webhook_url"],
+        message=message,
+        history=history[-WEBHOOK_HISTORY_LIMIT:],
+        auth_token=target.get("auth_token"),
+    )
+    metadata = result["metadata"]
+    outcome["security_outcome"] = metadata.get("security_outcome")
+    outcome["block_reason"] = metadata.get("block_reason")
+    return result["reply"]
+
+
+def _run(run_id, strategy, turns, history, company_id, customer_id, target) -> None:
     start_test_run(run_id)
     current_history = list(history)
     tool_events: list[dict] = []
@@ -58,13 +85,18 @@ def _run(run_id, strategy, turns, history, company_id, customer_id) -> None:
         )
         current_history.append({"role": "user", "content": attacker_message})
         outcome: dict = {}
-        defender_reply = query_defender(
-            attacker_message,
-            current_history[:-1],
-            customer_id=customer_id,
-            tool_events=tool_events,
-            defense_outcome=outcome,
-        )
+        if target:
+            defender_reply = _query_target(
+                target, attacker_message, current_history[:-1], outcome
+            )
+        else:
+            defender_reply = query_defender(
+                attacker_message,
+                current_history[:-1],
+                customer_id=customer_id,
+                tool_events=tool_events,
+                defense_outcome=outcome,
+            )
         defense_outcomes.append(outcome)
         current_history.append({"role": "assistant", "content": defender_reply})
 

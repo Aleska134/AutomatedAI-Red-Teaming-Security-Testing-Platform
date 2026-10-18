@@ -234,6 +234,13 @@ End-to-end flow (local):
 5. As that **company**, register a target with the URL above (note the required
    `/api/v1/chat` path) and run the scope-boundary test. The hardened target
    stays within store scope; the weak target can be made to answer off-topic.
+6. Run the adaptive multi-turn attacker against it:
+   `POST /api/v1/simulation/loop` with `{"target_id": "<id>", "turns": 3}`, then
+   poll `GET /api/v1/test-runs/{run_id}`. Each turn is sent through the v1
+   webhook contract (recent history included, plus the saved bearer token) and
+   the Judge audits the full conversation; the target's reported
+   `security_outcome` is stored per turn. Run both modes to compare them
+   (`./scripts/run_both.sh` in the chatbot repo starts both).
 
 The reference chatbot uses only mock data, so this is safe to run locally.
 
