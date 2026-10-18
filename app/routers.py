@@ -1,6 +1,8 @@
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 
 from app.agents.defender import query_defender
 from app.auth.dependencies import require_active_company
@@ -24,6 +26,7 @@ from app.services.commerce import (
     get_or_create_cart,
     search_products,
 )
+from app.services.run_report import render_run_report
 from app.services.security_evaluation import evaluate_webhook_metadata
 from app.services.simulation_loop import execute_simulation_run
 from app.services.targets import get_target
@@ -236,6 +239,26 @@ def get_test_run_by_id(run_id: str, principal: dict = Depends(require_active_com
     if result is None:
         raise HTTPException(status_code=404, detail=f"Test run {run_id} not found.")
     return result
+
+@router.get(
+    "/test-runs/{run_id}/report",
+    response_class=HTMLResponse,
+    summary="Download a printable HTML report for one run",
+)
+def get_test_run_report(
+    run_id: str,
+    lang: Literal["en", "es"] = "en",
+    principal: dict = Depends(require_active_company),
+):
+    scope = None if _is_admin(principal) else principal["company"]["company_id"]
+    run = get_test_run(run_id, company_id=scope)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Test run {run_id} not found.")
+    return HTMLResponse(
+        render_run_report(run, lang),
+        headers={"Content-Disposition": f'attachment; filename="report-{run_id}-{lang}.html"'},
+    )
+
 
 @router.get("/simulations/{session_id}", summary="Get specific log by ID")
 def get_simulation_by_id(

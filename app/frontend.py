@@ -26,6 +26,7 @@ from app.services.merchant_reporting import (  # noqa: E402
     summarize_finding_rules,
 )
 from app.services.owasp import owasp_label  # noqa: E402
+from app.services.run_report import render_run_report  # noqa: E402
 from app.services.security_scenarios import get_categories, get_scenarios  # noqa: E402
 
 # Configure the core Streamlit page parameters
@@ -324,6 +325,18 @@ with tab2:
         c_b.markdown(f"**Attacker Aggression Level:** `{selected_record.get('attacker_aggression_level', 1)}/5`")
         c_c.markdown(f"**Defense Efficiency Score:** `{selected_record.get('defense_efficiency_score', 10)}/10`")
         
+        lang_col, button_col = st.columns([1, 2])
+        report_lang = lang_col.selectbox(
+            "Report language", options=["en", "es"],
+            format_func={"en": "English", "es": "Español"}.get,
+        )
+        button_col.download_button(
+            "⬇️ Download report (HTML, print to PDF)",
+            data=render_run_report(selected_record, report_lang),
+            file_name=f"report-{selected_record['session_id']}-{report_lang}.html",
+            mime="text/html",
+        )
+
         st.info(f"**Technical Audit Analysis:**\n{selected_record.get('analysis', 'No analysis available.')}")
         st.caption(f"Keywords Flagged: {', '.join(selected_record.get('attack_vector_keywords', []))}")
 

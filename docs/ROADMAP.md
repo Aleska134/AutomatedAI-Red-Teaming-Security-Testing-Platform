@@ -45,7 +45,8 @@ itself is secure; a security tool with security holes undermines itself.
       hardened mode enforces them; a poisoned product review for real indirect
       injection. Platform side: `protected_values` (canaries) in business rules and
       a `canary_leak` rule (LLM02) — any planted value in a reply is a proven leak.
-- [ ] Downloadable per-run report (HTML/PDF): severity, evidence, remediation.
+- [x] Downloadable per-run report (HTML, print to PDF) in English or Spanish:
+      severity, OWASP category, evidence, remediation, transcript.
 - [ ] LLM judge with an explicit rubric so evaluation works in any language.
 - [ ] Defender tool-calling through the provider layer (Gemini support).
 
