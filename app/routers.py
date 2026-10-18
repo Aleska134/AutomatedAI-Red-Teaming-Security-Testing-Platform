@@ -22,6 +22,7 @@ from app.services.commerce import (
     CommerceError,
     add_to_cart,
     checkout_cart,
+    ensure_sandbox_customer,
     get_or_create_cart,
     search_products,
 )
@@ -33,7 +34,10 @@ from app.services.test_runs import (
     list_test_runs,
     start_test_run,
 )
-from app.services.security_evaluation import evaluate_webhook_metadata
+from app.services.security_evaluation import (
+    assess_conclusiveness,
+    evaluate_webhook_metadata,
+)
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
 router = APIRouter(
@@ -42,16 +46,22 @@ router = APIRouter(
 )
 
 
+def _sandbox_customer(principal: dict) -> str:
+    """The caller's customer ID always comes from its token, never the body."""
+    return ensure_sandbox_customer(principal["company"]["company_id"])
+
+
 @router.post(
     "/commerce/chat",
     response_model=CustomerChatResponse,
     summary="Send a message to the commerce support agent",
 )
-def commerce_chat(payload: CustomerChatRequest):
-    try:
-        get_or_create_cart(payload.customer_id)
-    except CommerceError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+def commerce_chat(
+    payload: CustomerChatRequest,
+    principal: dict = Depends(require_active_company),
+):
+    customer_id = _sandbox_customer(principal)
+    get_or_create_cart(customer_id)
 
     history = [message.model_dump() for message in payload.history]
     tool_events: list[dict] = []
@@ -59,12 +69,12 @@ def commerce_chat(payload: CustomerChatRequest):
     reply = query_defender(
         payload.message,
         chat_history=history,
-        customer_id=payload.customer_id,
+        customer_id=customer_id,
         tool_events=tool_events,
         defense_outcome=defense_outcome,
     )
     return {
-        "customer_id": payload.customer_id,
+        "customer_id": customer_id,
         "reply": reply,
         "history": [
             *history,
@@ -81,19 +91,19 @@ def list_products(search: str = ""):
     return {"data": search_products(search)}
 
 
-@router.get("/commerce/carts/{customer_id}", summary="Get a customer's open cart")
-def get_cart(customer_id: str):
-    try:
-        return get_or_create_cart(customer_id)
-    except CommerceError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+@router.get("/commerce/cart", summary="Get the company's sandbox cart")
+def get_cart(principal: dict = Depends(require_active_company)):
+    return get_or_create_cart(_sandbox_customer(principal))
 
 
-@router.post("/commerce/carts/items", summary="Add an item to a customer's cart")
-def add_cart_item(payload: AddToCartRequest):
+@router.post("/commerce/carts/items", summary="Add an item to the sandbox cart")
+def add_cart_item(
+    payload: AddToCartRequest,
+    principal: dict = Depends(require_active_company),
+):
     try:
         return add_to_cart(
-            payload.customer_id,
+            _sandbox_customer(principal),
             payload.product_id,
             payload.quantity,
         )
@@ -101,10 +111,13 @@ def add_cart_item(payload: AddToCartRequest):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.post("/commerce/checkout", summary="Check out a demo cart")
-def checkout(payload: CheckoutRequest):
+@router.post("/commerce/checkout", summary="Check out the sandbox cart")
+def checkout(
+    payload: CheckoutRequest,
+    principal: dict = Depends(require_active_company),
+):
     try:
-        return checkout_cart(payload.customer_id, payload.coupon_code)
+        return checkout_cart(_sandbox_customer(principal), payload.coupon_code)
     except CommerceError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -190,6 +203,7 @@ def run_automated_simulation_loop(
             defender_reply = query_defender(
                 attacker_message,
                 current_history[:-1],
+                customer_id=_sandbox_customer(principal),
                 tool_events=tool_events,
                 defense_outcome=outcome,
             )
@@ -197,8 +211,10 @@ def run_automated_simulation_loop(
             current_history.append({"role": "assistant", "content": defender_reply})
 
         audit_report = evaluate_simulation(current_history, tool_events)
-        existing_records_count = len(sessions_collection.all())
-        next_simulation_number = existing_records_count
+        # Numbered per company so tenants cannot infer each other's activity.
+        next_simulation_number = sum(
+            1 for r in sessions_collection.all() if r.get("company_id") == company_id
+        )
         session_record = {
             **run_record,
             "simulation_number": next_simulation_number,
@@ -215,6 +231,7 @@ def run_automated_simulation_loop(
             "tool_events": tool_events,
             "defense_outcomes": defense_outcomes,
             "attack_generation_events": attack_generation_events,
+            **assess_conclusiveness(defense_outcomes, audit_report),
         }
         # The identifiers are passed positionally; drop them from the payload so
         # they do not collide with the ``run_id`` parameter during binding.
@@ -243,6 +260,8 @@ def run_automated_simulation_loop(
             "tool_events": session_record["tool_events"],
             "defense_outcomes": session_record["defense_outcomes"],
             "attack_generation_events": session_record["attack_generation_events"],
+            "conclusive": session_record["conclusive"],
+            "inconclusive_reason": session_record["inconclusive_reason"],
             "full_chat_history": current_history,
         }
     except Exception as error:
@@ -253,8 +272,8 @@ def run_automated_simulation_loop(
             status_code=502,
             detail=(
                 "The security simulation could not be completed. This usually "
-                "means the LLM provider is unavailable or the OPENAI_API_KEY is "
-                "not configured. Deterministic checks still ran where possible."
+                "means the LLM provider is unavailable or its API key is not "
+                "configured. Deterministic checks still ran where possible."
             ),
         ) from error
 

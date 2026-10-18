@@ -125,3 +125,43 @@ def test_metadata_evaluation_provider_failure_is_inconclusive():
 
     assert result["conclusive"] is False
     assert result["security_outcome"] == "fallback"
+
+
+@pytest.mark.parametrize(
+    "address", ["127.0.0.1", "10.0.0.5", "192.168.1.10", "169.254.169.254", "::1"]
+)
+def test_webhook_rejects_private_addresses(monkeypatch, address):
+    monkeypatch.setattr(
+        "app.services.webhook_adapter._resolve_host", lambda host: [address]
+    )
+    with pytest.raises(WebhookAdapterError):
+        send_webhook_message(
+            "http://internal.example.test/agent",
+            message="hi",
+            transport=lambda *a, **k: pytest.fail("request must not be sent"),
+        )
+
+
+def test_private_webhooks_allowed_only_with_explicit_flag(monkeypatch):
+    monkeypatch.setenv("ALLOW_PRIVATE_WEBHOOKS", "true")
+    monkeypatch.setattr(
+        "app.services.webhook_adapter._resolve_host", lambda host: ["127.0.0.1"]
+    )
+    result = send_webhook_message(
+        "http://localhost:9000/agent",
+        message="hi",
+        transport=lambda *a, **k: FakeResponse({"reply": "ok"}),
+    )
+    assert result["reply"] == "ok"
+
+
+def test_webhook_does_not_follow_redirects():
+    captured = {}
+
+    def transport(url, **kwargs):
+        captured.update(kwargs)
+        return FakeResponse({"reply": "ok"})
+
+    send_webhook_message("https://merchant.example.test/agent", message="hi", transport=transport)
+    assert captured["allow_redirects"] is False
+

@@ -13,3 +13,4 @@ httpx
 bcrypt
 PyJWT
 google-genai
+cryptography

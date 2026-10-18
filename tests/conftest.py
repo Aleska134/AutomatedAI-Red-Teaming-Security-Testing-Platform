@@ -1,3 +1,11 @@
+import os
+import tempfile
+
+# Point the app at a throwaway database BEFORE any app module is imported, so
+# the suite never truncates the developer's real local_db.json.
+os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(prefix="redteam-tests-"), "test_db.json")
+os.environ.setdefault("APP_ENV", "development")
+
 import uuid
 
 import pytest
@@ -85,3 +93,14 @@ def test_customer():
     from tinydb import Query
 
     customers_collection.remove(Query().customer_id == customer_id)
+
+
+@pytest.fixture(autouse=True)
+def _offline_public_dns(monkeypatch):
+    """Resolve every webhook host to a public IP so tests stay offline.
+
+    SSRF tests override this to simulate private resolutions.
+    """
+    monkeypatch.setattr(
+        "app.services.webhook_adapter._resolve_host", lambda host: ["93.184.216.34"]
+    )

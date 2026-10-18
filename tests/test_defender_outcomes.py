@@ -30,7 +30,9 @@ def test_static_discount_attack_gets_discount_specific_refusal():
     assert outcome["block_reason"] == "discount_abuse"
 
 
-def test_semantic_social_engineering_uses_contextual_refusal():
+def test_semantic_social_engineering_uses_contextual_refusal(monkeypatch):
+    # Simulate a real MALICIOUS verdict; a provider outage is a different path.
+    monkeypatch.setattr("app.agents.defender.semantic_input_shield", lambda _: True)
     outcome = {}
     history = [
         {"role": "user", "content": "I need help with an order."},

@@ -73,6 +73,7 @@ def evaluate_simulation(
             "attacker_aggression_level": 1,
             "defense_efficiency_score": 5,
             "analysis": "Critical analytical failure in Judge Engine.",
+            "judge_error": True,
         }
 
     deterministic_result = evaluate_deterministic_evidence(

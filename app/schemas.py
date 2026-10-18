@@ -57,6 +57,8 @@ class LoopSimulationResponse(BaseModel):
     tool_events: list[dict] = Field(default_factory=list)
     defense_outcomes: list[dict] = Field(default_factory=list)
     attack_generation_events: list[dict] = Field(default_factory=list)
+    conclusive: bool = True
+    inconclusive_reason: str | None = None
     full_chat_history: list[ChatMessage]
 
 
@@ -79,18 +81,15 @@ class TestRunSummary(BaseModel):
 
 
 class AddToCartRequest(BaseModel):
-    customer_id: str = Field(min_length=1, max_length=100)
     product_id: str = Field(min_length=1, max_length=100)
     quantity: int = Field(ge=1, le=20)
 
 
 class CheckoutRequest(BaseModel):
-    customer_id: str = Field(min_length=1, max_length=100)
     coupon_code: str | None = Field(default=None, max_length=50)
 
 
 class CustomerChatRequest(BaseModel):
-    customer_id: str = Field(min_length=1, max_length=100)
     message: str = Field(min_length=1, max_length=8_000)
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
 
@@ -150,10 +149,6 @@ class ForgotPasswordRequest(BaseModel):
 
 class ForgotPasswordResponse(BaseModel):
     message: str
-    # In local/dev (no email service) the reset token is returned directly so
-    # the flow is usable and testable. A production deployment would email it
-    # instead and omit this field.
-    reset_token: str | None = None
 
 
 class ResetPasswordRequest(BaseModel):

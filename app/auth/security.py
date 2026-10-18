@@ -44,6 +44,7 @@ def create_access_token(
     subject: str,
     company_id: str,
     role: str,
+    token_version: int = 0,
     expires_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES,
 ) -> str:
     """Create a signed JWT carrying the principal's identity and tenancy."""
@@ -52,6 +53,8 @@ def create_access_token(
         "sub": subject,
         "company_id": company_id,
         "role": role,
+        # Bumped on every password change/reset to revoke older sessions.
+        "ver": token_version,
         "iat": now,
         "exp": now + timedelta(minutes=expires_minutes),
     }
