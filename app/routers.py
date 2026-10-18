@@ -192,7 +192,7 @@ def run_automated_simulation_loop(
 @router.get("/simulations", summary="Retrieve all simulation logs")
 def get_all_simulations(principal: dict = Depends(require_active_company)):
     """
-    Fetches every red teaming session recorded in the local JSON database.
+    Fetches the red teaming sessions visible to the caller (admins see all).
     Essential for parsing summary charts in the frontend dashboard.
     """
     records = _scoped_sessions(principal)
@@ -235,7 +235,7 @@ def get_simulation_by_id(
     principal: dict = Depends(require_active_company),
 ):
     """
-    Queries TinyDB for a single evaluation profile matching the specified tracking token.
+    Returns a single simulation record by its session ID.
     """
     for record in _scoped_sessions(principal):
         if record.get("session_id") == session_id:

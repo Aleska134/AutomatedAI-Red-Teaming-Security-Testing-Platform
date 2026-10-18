@@ -593,7 +593,7 @@ with tab4:
     st.markdown("""
     This control panel interface hooks straight into an optimized backend execution layers:
     - **Backend Engine:** FastAPI REST Architecture (`Uvicorn`)
-    - **Data Persistence:** TinyDB Local Document JSON Engine (`local_db.json`)
+    - **Data Persistence:** SQL database via SQLModel (SQLite locally, Postgres in production)
     - **Defense Matrix:** 3-Layer Input Filtering (Static Signature + Semantic Intent Firewall + Hardened Prompts)
     - **Red Team Matrix:** Multi-Turn Adaptive Prompt Injection LLM Generator
     """)

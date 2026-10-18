@@ -48,15 +48,17 @@ Prerequisites and gotchas:
 - **Two processes, two apps.** A Heroku app exposes one `web` process, so run
   the API and the Streamlit dashboard as separate Heroku apps:
   - API `Procfile`: `web: uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+    (auth rate limits key on the client IP; configure uvicorn's proxy headers
+    so it sees the real IP behind Heroku's router, not a spoofable one)
   - Dashboard `Procfile`: `web: streamlit run app/frontend.py --server.port $PORT --server.address 0.0.0.0`
   - Set `API_BASE_URL` on the dashboard app to the API app's URL.
 - **Config vars, never committed:** `APP_ENV=production`, `JWT_SECRET_KEY`
   (32+ chars), `TARGET_ENCRYPTION_KEY`, `DATABASE_URL`, LLM API keys, and
   `ADMIN_EMAIL`/`ADMIN_PASSWORD`. Keep `ALLOW_PRIVATE_WEBHOOKS` unset.
-- **Pin the Python version** (`.python-version`) and dependency versions so
-  builds are reproducible.
-- **Demo safety:** set spending limits on LLM API keys and add auth rate
-  limiting (Phase 2) before sharing a public URL.
+- **Pin the Python version** (`.python-version`) so builds are reproducible
+  (dependency versions are already pinned).
+- **Demo safety:** set spending limits on LLM API keys before sharing a public
+  URL (auth rate limiting is already in place).
 
 ## Keep it maintainable
 

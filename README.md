@@ -115,6 +115,8 @@ running.
 | `POST` | `/api/v1/commerce/chat` | Chat with the commerce Defender |
 | `POST` | `/api/v1/simulation/loop` | Queue an attacker-versus-defender simulation (returns `202` + `run_id`; runs in the background) |
 | `GET` | `/api/v1/simulations` | Retrieve simulation records |
+| `GET` | `/api/v1/simulations/{session_id}` | Retrieve one simulation record |
+| `GET` | `/api/v1/simulations/number/{n}` | Retrieve a company's simulation by its number (admins may pass `company_id`) |
 | `GET` | `/api/v1/test-runs` | Retrieve persisted merchant test runs |
 | `GET` | `/api/v1/test-runs/{run_id}` | Retrieve one test run; poll it until `status` is `completed` or `failed` |
 | `POST` | `/api/v1/integrations/webhook/test` | Test an external chatbot through the v1 webhook contract |
@@ -392,7 +394,8 @@ python -m pytest
 
 The suite currently covers catalog search, cart and checkout behavior,
 inventory updates, confirmation enforcement, tool allowlisting, basic
-prompt-injection signatures, authentication and tenant isolation, SSRF
+prompt-injection signatures, authentication and tenant isolation, per-company
+simulation numbering, background simulation runs, auth rate limiting, SSRF
 blocking, secret storage, and inconclusive-run reporting.
 
 ### Linting and dependencies
@@ -409,8 +412,8 @@ ruff check .          # add --fix to auto-fix import order and similar issues
 
 ## Security model
 
-This is a security tool, so the platform itself is hardened. Phase 1 of the
-[roadmap](docs/ROADMAP.md) closed these issues, each covered by tests:
+This is a security tool, so the platform itself is hardened. Phases 1 and 2 of
+the [roadmap](docs/ROADMAP.md) closed these issues, each covered by tests:
 
 | Risk | Mitigation |
 | :--- | :--- |

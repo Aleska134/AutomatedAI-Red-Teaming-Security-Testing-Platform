@@ -7,7 +7,7 @@ itself is secure; a security tool with security holes undermines itself.
 
 - [x] Reset token never returned by `/auth/forgot-password`; stored hashed.
 - [x] Commerce endpoints authenticated; customer derived from the token.
-- [x] Configurable `DB_PATH`; tests use a temporary database.
+- [x] Configurable database location (now `DATABASE_URL`); tests use a temporary database.
 - [x] App refuses to start without a strong `JWT_SECRET_KEY` outside development.
 - [x] SSRF protection for webhooks (public IPs only, no redirects).
 - [x] Provider outages produce **inconclusive** runs, not "secure" ones.
@@ -15,7 +15,7 @@ itself is secure; a security tool with security holes undermines itself.
 - [x] Target auth tokens encrypted at rest.
 - [x] Purchase intent alone no longer authorizes checkout.
 
-## Phase 2 — Solid, maintainable foundation
+## Phase 2 — Solid, maintainable foundation ✅
 
 - [x] Replace TinyDB with SQLModel: SQLite locally, Neon Postgres in production
       (selected by `DATABASE_URL`; safe under concurrency).
