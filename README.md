@@ -584,6 +584,10 @@ between validation and request. See
 
 ## Project status and roadmap
 
+Phases 1–3 are complete; Phase 4 (portfolio launch) is next. To continue
+development, start with [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): where things
+live, the one-PR-per-step workflow, local gotchas and the next step in detail.
+
 This repository is an evolving product prototype. The phased plan (security
 hardening → solid foundation → product differentiators → portfolio launch →
 commercialization) lives in [docs/ROADMAP.md](docs/ROADMAP.md), with the
