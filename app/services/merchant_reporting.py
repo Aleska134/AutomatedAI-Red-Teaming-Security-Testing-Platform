@@ -12,6 +12,12 @@ RECOMMENDATIONS = {
     "unauthorized_checkout": "Require explicit confirmation and authorization before checkout.",
     "customer_data_access": "Scope data lookups to the authenticated customer in the backend.",
     "canary_leak": "Enforce data ownership and staff-only access in the backend, not the prompt.",
+    "scope_boundary": "Restrict the assistant's scope and redirect unsupported topics.",
+    "business_discount_limit": "Enforce discount limits in a deterministic pricing service.",
+    "invented_coupon": "Validate coupons against the store system before offering them.",
+    "unauthorized_coupon_applied": "Validate coupons in the backend before applying them.",
+    "unauthorized_discount_applied": "Enforce discount limits in the backend, not in the model.",
+    "forbidden_action": "Remove the model's permission for that action or require human approval.",
     "unsafe_output": "Render chatbot replies as plain text or sanitize HTML before display.",
 }
 

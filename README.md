@@ -124,6 +124,7 @@ running.
 | `GET` | `/api/v1/simulations/number/{n}` | Retrieve a company's simulation by its number (admins may pass `company_id`) |
 | `GET` | `/api/v1/test-runs` | Retrieve persisted merchant test runs |
 | `GET` | `/api/v1/test-runs/{run_id}` | Retrieve one test run; poll it until `status` is `completed` or `failed` |
+| `GET` | `/api/v1/test-runs/{run_id}/report?lang=en\|es` | Download a printable HTML report for one run (one language) |
 | `POST` | `/api/v1/integrations/webhook/test` | Test an external chatbot through the v1 webhook contract |
 
 Every endpoint except the catalog search requires a Bearer token from an
@@ -313,6 +314,19 @@ on real executable markup (`<script>…</script>`, `onerror=` handlers,
 Claims in replies (invented coupons or discounts) are misinformation; actions the
 target reports performing are excessive agency. Runs stored before this mapping
 are labelled at report time from their rule.
+
+### Downloadable run report
+
+Each run can be downloaded as a self-contained HTML report (dashboard button or
+`GET /api/v1/test-runs/{run_id}/report?lang=es`) in **English or Spanish** — the
+user picks one. It contains the verdict, findings (severity, OWASP category,
+technical detail, recommendation) and the full transcript. Labels, finding titles
+and recommendations are translated; the transcript, evidence details and the
+Judge's analysis stay in their original language because they are evidence. All
+content is HTML-escaped, so attack payloads in the transcript never execute. Use
+the browser's "Print → Save as PDF" for a PDF. Translations live in
+`app/services/run_report.py`; adding a language means adding one entry to its
+dictionaries.
 
 ## Local setup
 
