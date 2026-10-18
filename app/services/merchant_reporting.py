@@ -3,6 +3,8 @@
 from collections import Counter
 from typing import Any
 
+from app.services.owasp import owasp_label
+
 RECOMMENDATIONS = {
     "discount_limit": "Enforce discount limits in a deterministic pricing service.",
     "prompt_disclosure": "Review prompt isolation and add prompt-extraction regression tests.",
@@ -68,6 +70,7 @@ def build_findings(simulations: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "session_id": simulation.get("session_id", "unknown"),
                     "rule": rule,
                     "severity": evidence.get("severity", "unknown"),
+                    "owasp": owasp_label(rule),
                     "description": evidence.get("description", ""),
                     "recommendation": RECOMMENDATIONS.get(
                         rule,
