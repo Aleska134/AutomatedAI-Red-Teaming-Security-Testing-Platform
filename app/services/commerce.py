@@ -3,8 +3,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
-from tinydb import Query
-
 from app.database import (
     carts_collection,
     customers_collection,
@@ -80,7 +78,7 @@ def ensure_sandbox_customer(company_id: str) -> str:
     another company's cart.
     """
     customer_id = f"sandbox-{company_id}"
-    if customers_collection.get(Query().customer_id == customer_id) is None:
+    if customers_collection.get(customer_id=customer_id) is None:
         customers_collection.insert(
             {
                 "customer_id": customer_id,
@@ -93,7 +91,7 @@ def ensure_sandbox_customer(company_id: str) -> str:
 
 
 def get_product(product_id: str) -> dict:
-    product = products_collection.get(Query().product_id == product_id)
+    product = products_collection.get(product_id=product_id)
     if product is None:
         raise NotFoundError(f"Product '{product_id}' was not found.")
     return dict(product)
@@ -113,10 +111,10 @@ def search_products(search_term: str = "") -> list[dict]:
 
 
 def get_or_create_cart(customer_id: str) -> dict:
-    if customers_collection.get(Query().customer_id == customer_id) is None:
+    if customers_collection.get(customer_id=customer_id) is None:
         raise NotFoundError(f"Customer '{customer_id}' was not found.")
 
-    cart = carts_collection.get(Query().customer_id == customer_id)
+    cart = carts_collection.get(customer_id=customer_id)
     if cart is None:
         cart = {
             "customer_id": customer_id,
@@ -132,7 +130,7 @@ def get_or_create_cart(customer_id: str) -> dict:
             "status": "open",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-        carts_collection.update(cart, Query().customer_id == customer_id)
+        carts_collection.update(cart, customer_id=customer_id)
     return dict(cart)
 
 
@@ -167,7 +165,7 @@ def add_to_cart(customer_id: str, product_id: str, quantity: int) -> dict:
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     carts_collection.update(
-        updated_cart, Query().customer_id == customer_id
+        updated_cart, customer_id=customer_id
     )
     return updated_cart
 
@@ -205,7 +203,7 @@ def checkout_cart(customer_id: str, coupon_code: str | None = None) -> dict:
         product = get_product(item["product_id"])
         products_collection.update(
             {"inventory": product["inventory"] - item["quantity"]},
-            Query().product_id == item["product_id"],
+            product_id=item["product_id"],
         )
 
     order = {
@@ -223,6 +221,6 @@ def checkout_cart(customer_id: str, coupon_code: str | None = None) -> dict:
             "status": "checked_out",
             "updated_at": datetime.now(timezone.utc).isoformat(),
         },
-        Query().customer_id == customer_id,
+        customer_id=customer_id,
     )
     return order

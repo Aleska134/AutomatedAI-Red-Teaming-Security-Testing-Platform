@@ -17,7 +17,7 @@ itself is secure; a security tool with security holes undermines itself.
 
 ## Phase 2 — Solid, maintainable foundation
 
-- [ ] Replace TinyDB with SQLModel: SQLite locally, Neon Postgres in production
+- [x] Replace TinyDB with SQLModel: SQLite locally, Neon Postgres in production
       (selected by `DATABASE_URL`; safe under concurrency).
 - [ ] Pin dependency versions; add `ruff` lint to CI.
 - [ ] `docker compose up` runs backend + dashboard with one command.

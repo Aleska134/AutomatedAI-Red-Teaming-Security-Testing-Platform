@@ -12,8 +12,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from tinydb import Query
-
 from app.auth.config import ADMIN_EMAIL, ADMIN_PASSWORD
 from app.auth.security import hash_password, verify_password
 from app.database import companies_collection, users_collection
@@ -63,12 +61,12 @@ def _normalize_email(email: str) -> str:
 
 
 def get_user_by_email(email: str) -> Optional[dict[str, Any]]:
-    result = users_collection.search(Query().email == _normalize_email(email))
+    result = users_collection.find(email=_normalize_email(email))
     return dict(result[0]) if result else None
 
 
 def get_company(company_id: str) -> Optional[dict[str, Any]]:
-    result = companies_collection.search(Query().company_id == company_id)
+    result = companies_collection.find(company_id=company_id)
     return dict(result[0]) if result else None
 
 
@@ -144,7 +142,7 @@ def authenticate(email: str, password: str) -> dict[str, Any]:
 
 def list_companies() -> list[dict[str, Any]]:
     """Return all registered companies (admin view), newest first."""
-    companies = companies_collection.search(Query().company_id.exists())
+    companies = companies_collection.all()
     return sorted(
         (_public_company(c) for c in companies),
         key=lambda item: item["created_at"],
@@ -158,7 +156,7 @@ def set_company_status(company_id: str, status: str) -> dict[str, Any]:
         raise AccountError(f"Invalid status '{status}'.")
     if get_company(company_id) is None:
         raise AccountError(f"Company '{company_id}' was not found.")
-    companies_collection.update({"status": status}, Query().company_id == company_id)
+    companies_collection.update({"status": status}, company_id=company_id)
     return _public_company(get_company(company_id))
 
 
@@ -172,7 +170,7 @@ def change_password(email: str, current_password: str, new_password: str) -> Non
             "password_hash": hash_password(new_password),
             "token_version": _bump_token_version(user),
         },
-        Query().email == _normalize_email(email),
+        email=_normalize_email(email),
     )
 
 
@@ -190,7 +188,7 @@ def create_password_reset_token(email: str) -> Optional[str]:
     expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     users_collection.update(
         {"reset_token": _hash_reset_token(token), "reset_token_expires": expires},
-        Query().email == _normalize_email(email),
+        email=_normalize_email(email),
     )
     return token
 
@@ -199,7 +197,7 @@ def reset_password_with_token(token: str, new_password: str) -> None:
     """Consume a valid, unexpired reset token and set a new password."""
     if not token:
         raise AuthenticationError("Invalid or expired reset token.")
-    result = users_collection.search(Query().reset_token == _hash_reset_token(token))
+    result = users_collection.find(reset_token=_hash_reset_token(token))
     if not result:
         raise AuthenticationError("Invalid or expired reset token.")
     user = result[0]
@@ -213,7 +211,7 @@ def reset_password_with_token(token: str, new_password: str) -> None:
             "reset_token": None,
             "reset_token_expires": None,
         },
-        Query().user_id == user["user_id"],
+        user_id=user["user_id"],
     )
 
 
@@ -231,10 +229,10 @@ def ensure_admin_user() -> None:
         # Keep the admin password in sync with the environment and ensure role.
         users_collection.update(
             {"password_hash": hash_password(ADMIN_PASSWORD), "role": ROLE_ADMIN},
-            Query().email == _normalize_email(ADMIN_EMAIL),
+            email=_normalize_email(ADMIN_EMAIL),
         )
         companies_collection.update(
-            {"status": STATUS_ACTIVE}, Query().company_id == existing["company_id"]
+            {"status": STATUS_ACTIVE}, company_id=existing["company_id"]
         )
         return
 

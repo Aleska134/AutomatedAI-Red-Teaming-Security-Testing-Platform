@@ -1,6 +1,5 @@
 import uuid
 
-from tinydb import Query
 
 from app.database import sessions_collection
 from app.services.test_runs import (
@@ -40,7 +39,7 @@ def test_test_run_lifecycle_persists_status_and_timestamps():
         assert get_test_run(run_id)["run_id"] == run_id
         assert any(item["run_id"] == run_id for item in list_test_runs())
     finally:
-        sessions_collection.remove(Query().run_id == run_id)
+        sessions_collection.remove(run_id=run_id)
 
 
 def test_failed_test_run_records_explicit_error():
@@ -57,7 +56,7 @@ def test_failed_test_run_records_explicit_error():
         assert failed["failed_at"]
         assert failed["error"] == "provider unavailable"
     finally:
-        sessions_collection.remove(Query().run_id == run_id)
+        sessions_collection.remove(run_id=run_id)
 
 
 def test_complete_run_tolerates_splatted_record_with_identifiers():
@@ -83,4 +82,4 @@ def test_complete_run_tolerates_splatted_record_with_identifiers():
         assert completed["run_id"] == run_id
         assert completed["company_id"] == "company-xyz"
     finally:
-        sessions_collection.remove(Query().run_id == run_id)
+        sessions_collection.remove(run_id=run_id)

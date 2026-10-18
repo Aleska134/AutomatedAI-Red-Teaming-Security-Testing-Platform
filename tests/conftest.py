@@ -2,8 +2,10 @@ import os
 import tempfile
 
 # Point the app at a throwaway database BEFORE any app module is imported, so
-# the suite never truncates the developer's real local_db.json.
-os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(prefix="redteam-tests-"), "test_db.json")
+# the suite never truncates the developer's real local database.
+os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(
+    tempfile.mkdtemp(prefix="redteam-tests-"), "test.db"
+)
 os.environ.setdefault("APP_ENV", "development")
 
 import uuid
@@ -12,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.database import (
+    init_database,
     companies_collection,
     customers_collection,
     sessions_collection,
@@ -25,6 +28,7 @@ from app.services.commerce import seed_commerce_data
 @pytest.fixture(autouse=True, scope="session")
 def _seed_commerce_once():
     """Seed the deterministic demo catalog so tests do not depend on ordering."""
+    init_database()
     seed_commerce_data()
     yield
 
@@ -90,9 +94,7 @@ def test_customer():
         }
     )
     yield customer_id
-    from tinydb import Query
-
-    customers_collection.remove(Query().customer_id == customer_id)
+    customers_collection.remove(customer_id=customer_id)
 
 
 @pytest.fixture(autouse=True)

@@ -18,7 +18,6 @@ Findings from the project review and the reasoning behind the
 | :--- | :--- | :--- |
 | No auth rate limiting | Password brute force / reset spam | Phase 2 |
 | DNS rebinding on webhooks | Host can resolve public at check time, private at request time | Pin the resolved IP for the request |
-| TinyDB under concurrency | FastAPI runs sync endpoints in a thread pool; concurrent writes can corrupt `local_db.json` | SQLite (Phase 2) |
 | Shared demo inventory | Sandbox carts are per company, but product stock is global | Per-tenant catalog or reset per run |
 | Synchronous simulations | Up to ~3 LLM calls per turn inside one HTTP request | Background tasks (Phase 2) |
 
@@ -41,9 +40,9 @@ for a demo. Check both providers' current plan limits before launch.
 
 Prerequisites and gotchas:
 
-- **Postgres is required first.** Heroku dyno filesystems are ephemeral, so
-  `local_db.json` would be wiped on every restart/deploy. Finish the SQLModel
-  migration (Phase 2) and read the connection string from `DATABASE_URL`.
+- **Postgres is required.** Heroku dyno filesystems are ephemeral, so a local
+  SQLite file would be wiped on every restart/deploy. Set `DATABASE_URL` to the
+  Neon connection string (the app already accepts Heroku's `postgres://`).
 - **Use Neon's pooled connection string** with `sslmode=require`. Neon scales
   to zero when idle, so expect a short cold start on the first request; keep
   connection pool sizes small.

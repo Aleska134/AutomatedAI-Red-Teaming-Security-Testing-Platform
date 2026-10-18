@@ -1,4 +1,3 @@
-from tinydb import Query
 
 from app.database import carts_collection, orders_collection, products_collection
 from app.services.commerce import (
@@ -34,10 +33,10 @@ def test_checkout_applies_allowed_coupon_and_decrements_inventory(test_customer)
     finally:
         products_collection.update(
             {"inventory": original_inventory},
-            Query().product_id == product_id,
+            product_id=product_id,
         )
-        orders_collection.remove(Query().customer_id == test_customer)
-        carts_collection.remove(Query().customer_id == test_customer)
+        orders_collection.remove(customer_id=test_customer)
+        carts_collection.remove(customer_id=test_customer)
 
 
 def test_checkout_tool_requires_explicit_confirmation(test_customer):

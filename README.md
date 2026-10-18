@@ -93,7 +93,7 @@ Client / Streamlit
         +--> Judge agent
         |
         v
-      TinyDB
+      SQL database (SQLModel: SQLite locally, Postgres in production)
 ```
 
 The central design principle is:
@@ -272,8 +272,9 @@ TARGET_ENCRYPTION_KEY=
 # Allow webhook targets on localhost/private networks. Local development only.
 ALLOW_PRIVATE_WEBHOOKS=false
 
-# Optional database file location (default: local_db.json).
-DB_PATH=local_db.json
+# Database connection (default: a local SQLite file, sqlite:///local.db).
+# Production: a Postgres URL, e.g. Neon's pooled string with ?sslmode=require.
+DATABASE_URL=sqlite:///local.db
 ACCESS_TOKEN_EXPIRE_MINUTES=720
 
 # Optional first-admin bootstrap. When both are set, an active admin account
@@ -283,6 +284,16 @@ ADMIN_PASSWORD=choose-a-strong-admin-password
 ```
 
 The `.env` file is ignored by Git and must never be committed.
+
+### Database
+
+Tables are created automatically on startup. Locally the data lives in
+`local.db` (SQLite); set `DATABASE_URL` to a Postgres URL to use Postgres.
+If you have data from the old TinyDB version, import it once:
+
+```bash
+python -m scripts.import_tinydb local_db.json
+```
 
 ### Choosing an LLM provider
 
@@ -342,8 +353,8 @@ streamlit run app/frontend.py
 
 The automated tests intentionally cover the deterministic parts of the system
 without calling any LLM provider or the network, which keeps them fast and
-avoids API usage. They run against a temporary database, so your
-`local_db.json` is never touched:
+avoids API usage. They run against a temporary SQLite database, so your
+local data is never touched:
 
 ```bash
 python -m pytest
@@ -369,11 +380,11 @@ This is a security tool, so the platform itself is hardened. Phase 1 of the
 | Plaintext third-party secrets | Target tokens encrypted at rest (Fernet) |
 | False "secure" verdicts on provider outage | Shield outages recorded as `unavailable`; runs marked inconclusive |
 | Unconfirmed purchases | Purchase intent alone does not authorize checkout |
-| Tests wiping local data | Configurable `DB_PATH`; tests use a temporary database |
+| Tests wiping local data | Configurable `DATABASE_URL`; tests use a temporary database |
+| Data corruption under concurrent writes | SQL database (SQLModel); each write is its own transaction |
 
 Known limitations (planned): no rate limiting on auth endpoints yet, the SSRF
-check is vulnerable to DNS rebinding between validation and request, and
-TinyDB is not safe under concurrent writes. See
+check is vulnerable to DNS rebinding between validation and request. See
 [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
 
 ## Project status and roadmap
