@@ -41,7 +41,11 @@ from app.services.accounts import (
 )
 from app.services.security_evaluation import evaluate_webhook_metadata
 from app.services.targets import create_target, get_target, list_targets
-from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
+from app.services.webhook_adapter import (
+    WebhookAdapterError,
+    send_webhook_message,
+    validate_webhook_url,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["Authentication & Tenancy"])
 
@@ -179,6 +183,10 @@ def create_company_target(
     payload: TargetCreateRequest,
     principal: dict = Depends(require_active_company),
 ):
+    try:
+        validate_webhook_url(payload.webhook_url)
+    except WebhookAdapterError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     return create_target(
         company_id=principal["company"]["company_id"],
         name=payload.name,

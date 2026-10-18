@@ -93,3 +93,14 @@ def test_customer():
     from tinydb import Query
 
     customers_collection.remove(Query().customer_id == customer_id)
+
+
+@pytest.fixture(autouse=True)
+def _offline_public_dns(monkeypatch):
+    """Resolve every webhook host to a public IP so tests stay offline.
+
+    SSRF tests override this to simulate private resolutions.
+    """
+    monkeypatch.setattr(
+        "app.services.webhook_adapter._resolve_host", lambda host: ["93.184.216.34"]
+    )

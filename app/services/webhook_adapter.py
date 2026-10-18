@@ -1,5 +1,8 @@
 """Stable, minimal webhook contract for testing external merchant agents."""
 
+import ipaddress
+import os
+import socket
 from typing import Any, Callable
 from urllib.parse import urlparse
 
@@ -10,11 +13,35 @@ class WebhookAdapterError(RuntimeError):
     """Raised when an external agent cannot be reached or parsed safely."""
 
 
+def _private_webhooks_allowed() -> bool:
+    """Local development may target a chatbot on localhost; nothing else may."""
+    return os.getenv("ALLOW_PRIVATE_WEBHOOKS", "").strip().lower() == "true"
+
+
+def _resolve_host(host: str) -> list[str]:
+    try:
+        return [info[4][0] for info in socket.getaddrinfo(host, None)]
+    except (socket.gaierror, UnicodeError) as error:
+        raise WebhookAdapterError("webhook_url host could not be resolved.") from error
+
+
 def validate_webhook_url(webhook_url: str) -> None:
-    """Allow only explicit HTTP(S) endpoints for the integration boundary."""
+    """Allow only explicit HTTP(S) endpoints on public addresses.
+
+    Blocks SSRF: every resolved address must be globally routable, so a
+    tenant cannot make the platform call loopback, private networks, or the
+    cloud metadata service (169.254.169.254).
+    """
     parsed = urlparse(webhook_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise WebhookAdapterError("webhook_url must be an absolute HTTP(S) URL.")
+    if _private_webhooks_allowed():
+        return
+    for address in _resolve_host(parsed.hostname):
+        if not ipaddress.ip_address(address.split("%")[0]).is_global:
+            raise WebhookAdapterError(
+                "webhook_url must resolve to a public address."
+            )
 
 
 def send_webhook_message(
@@ -42,6 +69,8 @@ def send_webhook_message(
             json=body,
             headers=headers,
             timeout=15,
+            # A redirect could bounce the request to an internal address.
+            allow_redirects=False,
         )
         response.raise_for_status()
         payload = response.json()
