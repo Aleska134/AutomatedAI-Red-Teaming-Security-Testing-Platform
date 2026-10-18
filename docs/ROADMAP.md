@@ -32,7 +32,7 @@ itself is secure; a security tool with security holes undermines itself.
 - [x] Per-target **business rules** declared by the company (valid coupons, max
       discount, forbidden actions) checked deterministically against replies and
       metadata, so invented or unauthorized discounts are proven breaches.
-- [ ] Map every finding to the **OWASP Top 10 for LLM Applications** (LLM01, …).
+- [x] Map every finding to the **OWASP Top 10 for LLM Applications** (LLM01, …).
 - [ ] Downloadable per-run report (HTML/PDF): severity, evidence, remediation.
 - [ ] LLM judge with an explicit rubric so evaluation works in any language.
 - [ ] Defender tool-calling through the provider layer (Gemini support).

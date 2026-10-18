@@ -25,6 +25,7 @@ from app.services.merchant_reporting import (  # noqa: E402
     build_merchant_report,
     summarize_finding_rules,
 )
+from app.services.owasp import owasp_label  # noqa: E402
 from app.services.security_scenarios import get_categories, get_scenarios  # noqa: E402
 
 # Configure the core Streamlit page parameters
@@ -339,6 +340,7 @@ with tab2:
                     {
                         "Rule": item.get("rule", "unknown"),
                         "Severity": item.get("severity", "unknown").upper(),
+                        "OWASP": owasp_label(item.get("rule", "")),
                         "Description": item.get("description", ""),
                     }
                     for item in evidence
@@ -564,6 +566,7 @@ with tab3:
                     "Simulation": finding["simulation_number"],
                     "Severity": finding["severity"].upper(),
                     "Rule": finding["rule"],
+                    "OWASP": finding["owasp"],
                     "Description": finding["description"],
                     "Recommendation": finding["recommendation"],
                 }
