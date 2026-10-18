@@ -156,7 +156,8 @@ def has_explicit_purchase_confirmation(user_message: str) -> bool:
 
     confirmation_patterns = (
         r"\bconfirm(?:ed|ing)?\b.*\b(?:purchase|order|checkout)\b",
-        r"\b(?:purchase|buy|place the order|complete the order|proceed to checkout)\b",
+        # Intent alone ("I want to buy headphones") is not a confirmation.
+        r"\b(?:place the order|complete the (?:order|purchase)|proceed to checkout)\b",
         r"\byes\b.*\b(?:purchase|order|checkout|buy)\b",
     )
     return any(

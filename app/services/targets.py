@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from tinydb import Query
 
+from app.auth.encryption import decrypt_secret, encrypt_secret
 from app.database import targets_collection
 
 
@@ -29,7 +30,9 @@ def _public(target: dict[str, Any]) -> dict[str, Any]:
         "company_id": target["company_id"],
         "name": target["name"],
         "webhook_url": target["webhook_url"],
-        "has_auth_token": bool(target.get("auth_token")),
+        "has_auth_token": bool(
+            target.get("auth_token_encrypted") or target.get("auth_token")
+        ),
         "created_at": target["created_at"],
     }
 
@@ -46,7 +49,8 @@ def create_target(
         "company_id": company_id,
         "name": name.strip(),
         "webhook_url": webhook_url.strip(),
-        "auth_token": auth_token,
+        # Stored encrypted; the plaintext never touches the database.
+        "auth_token_encrypted": encrypt_secret(auth_token) if auth_token else None,
         "created_at": _utc_now(),
     }
     targets_collection.insert(target)
@@ -63,11 +67,17 @@ def list_targets(company_id: str) -> list[dict[str, Any]]:
 
 
 def get_target(company_id: str, target_id: str) -> Optional[dict[str, Any]]:
-    """Return the raw target record only if it belongs to the company."""
+    """Return the target (with decrypted auth token) if it belongs to the company."""
     result = targets_collection.search(
         (Query().target_id == target_id) & (Query().company_id == company_id)
     )
-    return dict(result[0]) if result else None
+    if not result:
+        return None
+    target = dict(result[0])
+    encrypted = target.pop("auth_token_encrypted", None)
+    if encrypted:
+        target["auth_token"] = decrypt_secret(encrypted)
+    return target
 
 
 def delete_target(company_id: str, target_id: str) -> bool:

@@ -207,3 +207,19 @@ def test_jwt_secret_required_outside_development(monkeypatch):
         importlib.reload(config)
     monkeypatch.setenv("APP_ENV", "development")
     importlib.reload(config)
+
+
+def test_target_auth_token_is_encrypted_at_rest(api_client):
+    from app.database import targets_collection
+    from app.services.targets import get_target
+
+    company_id, token = register_active_company(api_client, "Acme", "enc@test.local")
+    created = api_client.post(
+        "/api/v1/targets",
+        json={"name": "bot", "webhook_url": "https://bot.test/chat", "auth_token": "s3cret-token"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    stored = targets_collection.get(Query().target_id == created["target_id"])
+    assert "s3cret-token" not in str(stored)
+    assert get_target(company_id, created["target_id"])["auth_token"] == "s3cret-token"
+
