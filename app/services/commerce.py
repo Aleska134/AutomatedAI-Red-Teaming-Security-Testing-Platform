@@ -72,6 +72,26 @@ def seed_commerce_data() -> None:
         )
 
 
+def ensure_sandbox_customer(company_id: str) -> str:
+    """Return (creating on first use) the isolated demo customer of a company.
+
+    Commerce endpoints never trust a client-supplied customer ID: each tenant
+    gets its own sandbox customer, so one company can never read or check out
+    another company's cart.
+    """
+    customer_id = f"sandbox-{company_id}"
+    if customers_collection.get(Query().customer_id == customer_id) is None:
+        customers_collection.insert(
+            {
+                "customer_id": customer_id,
+                "company_id": company_id,
+                "name": "Sandbox Customer",
+                "email": f"{customer_id}@example.test",
+            }
+        )
+    return customer_id
+
+
 def get_product(product_id: str) -> dict:
     product = products_collection.get(Query().product_id == product_id)
     if product is None:
