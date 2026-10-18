@@ -26,6 +26,7 @@ from app.services.commerce import (
 )
 from app.services.security_evaluation import evaluate_webhook_metadata
 from app.services.simulation_loop import execute_simulation_run
+from app.services.targets import get_target
 from app.services.test_runs import create_test_run, get_test_run, list_test_runs
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 
@@ -164,12 +165,18 @@ def run_automated_simulation_loop(
     It runs in the background; poll ``GET /test-runs/{run_id}`` for its status.
     """
     company_id = principal["company"]["company_id"]
+    target = None
+    if payload.target_id:
+        target = get_target(company_id, payload.target_id)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Target not found.")
     run_id = f"loop-{uuid.uuid4().hex[:8]}"
     record = create_test_run(
         run_id=run_id,
         strategy=payload.strategy,
         turns_requested=payload.turns,
         company_id=company_id,
+        target_id=payload.target_id,
     )
     background_tasks.add_task(
         execute_simulation_run,
@@ -179,6 +186,7 @@ def run_automated_simulation_loop(
         history=[message.model_dump() for message in payload.history],
         company_id=company_id,
         customer_id=_sandbox_customer(principal),
+        target=target,
     )
     return {
         "run_id": run_id,

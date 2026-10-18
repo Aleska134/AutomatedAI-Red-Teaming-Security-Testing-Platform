@@ -18,6 +18,7 @@ def create_test_run(
     turns_requested: int,
     run_type: str = "manual",
     company_id: str | None = None,
+    target_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a queued test record before execution begins."""
     timestamp = utc_now()
@@ -25,6 +26,7 @@ def create_test_run(
         "run_id": run_id,
         "session_id": run_id,
         "company_id": company_id,
+        "target_id": target_id,
         "run_type": run_type,
         "strategy": strategy,
         "turns_requested": turns_requested,

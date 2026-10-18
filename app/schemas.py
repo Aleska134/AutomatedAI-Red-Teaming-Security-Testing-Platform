@@ -33,6 +33,8 @@ class SimulationLoopRequest(BaseModel):
         default=SUPPORTED_ATTACK_STRATEGIES[0]
     )
     history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+    # Attack a saved external chatbot instead of the built-in Defender.
+    target_id: str | None = Field(default=None, max_length=64)
 
 
 class SimulationQueuedResponse(BaseModel):

@@ -27,7 +27,7 @@ itself is secure; a security tool with security holes undermines itself.
 
 ## Phase 3 — Differentiators (what makes it a product)
 
-- [ ] Run the adaptive multi-turn attacker against **external webhook targets**,
+- [x] Run the adaptive multi-turn attacker against **external webhook targets**,
       not just the built-in Defender.
 - [ ] Map every finding to the **OWASP Top 10 for LLM Applications** (LLM01, …).
 - [ ] Downloadable per-run report (HTML/PDF): severity, evidence, remediation.

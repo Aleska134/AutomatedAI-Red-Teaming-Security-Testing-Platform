@@ -180,7 +180,7 @@ def assess_conclusiveness(
         return {
             "conclusive": False,
             "inconclusive_reason": (
-                f"The Defender's LLM provider was unavailable on {unavailable} "
+                f"The defending chatbot's LLM provider was unavailable on {unavailable} "
                 f"of {len(defense_outcomes)} turns."
             ),
         }

@@ -28,8 +28,9 @@ Findings from the project review and the reasoning behind the
 - The scope-boundary check matches English phrases; a chatbot replying in
   another language is always flagged. Use a rubric-based LLM judge or
   per-language markers.
-- External targets get a single fixed probe. Running the adaptive attacker
-  against them is the highest-value next feature.
+- The adaptive attacker can run against external targets, but tool-call
+  evidence (e.g. applied discounts) is only available for the built-in
+  Defender; external targets are judged on their replies and reported metadata.
 
 ## Deployment: Heroku + Neon
 
