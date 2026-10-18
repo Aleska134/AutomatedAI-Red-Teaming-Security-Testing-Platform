@@ -11,7 +11,6 @@ from app.services.commerce import (
     search_products,
 )
 
-
 COMMERCE_TOOL_DEFINITIONS = [
     {
         "type": "function",

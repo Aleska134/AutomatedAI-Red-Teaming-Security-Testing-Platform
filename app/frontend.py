@@ -1,22 +1,16 @@
-import sys
 import os
+import sys
 from pathlib import Path
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.services.merchant_reporting import (
-    build_findings,
-    build_merchant_report,
-    summarize_finding_rules,
-)
-from app.services.security_scenarios import get_categories, get_scenarios
-from app.frontend_auth import (
+from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
     api_get,
     api_post,
     current_role,
@@ -25,6 +19,12 @@ from app.frontend_auth import (
     render_auth_gate,
     render_sidebar_profile,
 )
+from app.services.merchant_reporting import (  # noqa: E402
+    build_findings,
+    build_merchant_report,
+    summarize_finding_rules,
+)
+from app.services.security_scenarios import get_categories, get_scenarios  # noqa: E402
 
 # Configure the core Streamlit page parameters
 st.set_page_config(

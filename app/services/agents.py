@@ -1,8 +1,10 @@
 import os
-from openai import AsyncOpenAI
+
 from dotenv import load_dotenv
-from app.schemas import AuditReport
+from openai import AsyncOpenAI
+
 from app.domain import MAX_DISCOUNT_PERCENT, RETURN_WINDOW_DAYS, STANDARD_COUPON_CODE, STORE_NAME
+from app.schemas import AuditReport
 
 load_dotenv()
 

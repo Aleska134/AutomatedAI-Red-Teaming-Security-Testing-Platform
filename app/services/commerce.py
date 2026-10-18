@@ -1,7 +1,7 @@
 """Deterministic commerce operations used by the simulated store."""
 
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from app.database import (
     carts_collection,

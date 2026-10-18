@@ -2,7 +2,6 @@
 
 from enum import StrEnum
 
-
 STORE_NAME = "TechMart"
 MAX_DISCOUNT_PERCENT = 10
 RETURN_WINDOW_DAYS = 30
