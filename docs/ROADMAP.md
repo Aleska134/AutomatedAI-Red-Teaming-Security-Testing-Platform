@@ -20,7 +20,7 @@ itself is secure; a security tool with security holes undermines itself.
 - [x] Replace TinyDB with SQLModel: SQLite locally, Neon Postgres in production
       (selected by `DATABASE_URL`; safe under concurrency).
 - [x] Pin dependency versions; add `ruff` lint to CI.
-- [ ] `docker compose up` runs backend + dashboard with one command.
+- [x] `docker compose up` runs backend + dashboard with one command.
 - [ ] Run simulations in the background (`BackgroundTasks`); poll run status.
 - [ ] Rate-limit login, register, and forgot-password.
 - [ ] Replace deprecated `@app.on_event` with a `lifespan` handler.

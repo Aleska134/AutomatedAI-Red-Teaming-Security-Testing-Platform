@@ -23,6 +23,24 @@ jobs:
           pip install -r requirements-dev.txt
           ruff check .
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Start the stack
+        run: docker compose up --build --detach --wait --wait-timeout 180
+
+      - name: Smoke-test backend and dashboard
+        run: |
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:8000/docs
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors http://localhost:8501/_stcore/health
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
   test:
     runs-on: ubuntu-latest
     strategy:

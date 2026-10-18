@@ -233,6 +233,27 @@ The reference chatbot uses only mock data, so this is safe to run locally.
 
 ## Local setup
 
+### Quick start with Docker
+
+With Docker installed, one command starts Postgres, the backend, and the
+dashboard:
+
+```bash
+docker compose up --build
+```
+
+- Dashboard: `http://localhost:8501`
+- Swagger UI: `http://localhost:8000/docs`
+
+Secrets and LLM keys are read from `.env` if present (see below). The stack runs
+with `APP_ENV=development` by default, so it starts without a `JWT_SECRET_KEY`;
+never use that default outside your machine. Data persists in the `pgdata`
+volume (`docker compose down -v` wipes it). To attack a chatbot running on your
+host, use `http://host.docker.internal:<port>/...` as the target URL and set
+`ALLOW_PRIVATE_WEBHOOKS=true` in `.env`.
+
+The manual setup below is still the best option for development (hot reload).
+
 ### Requirements
 
 - Python 3.11 or newer.
