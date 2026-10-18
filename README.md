@@ -526,8 +526,11 @@ webhook test response (`security_outcome`, `block_reason`, `metadata_available`)
 This metadata is treated as a reported signal, not as ground truth: the
 text-based scope check stays authoritative, and an `unavailable` or `fallback`
 outcome (for example a provider failure) is reported as inconclusive rather than
-as proof the target is secure. Targets that omit `metadata` keep working
-unchanged.
+as proof the target is secure. The optional `applied_coupons`,
+`applied_discount_percent` and `actions_taken` fields report what the bot
+actually did; simulation runs compare them with the target's
+[business rules](#business-rules-per-target). Targets that omit `metadata` keep
+working unchanged.
 
 The companion reference target
 ([`Aleska134/AI-Chatbot`](https://github.com/Aleska134/AI-Chatbot))
