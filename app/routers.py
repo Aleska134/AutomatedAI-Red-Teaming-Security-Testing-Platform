@@ -3,10 +3,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.dependencies import require_active_company
-from app.agents.defender import query_defender
 from app.agents.attacker import generate_attack_payload_result
+from app.agents.defender import query_defender
 from app.agents.judge import evaluate_simulation
+from app.auth.dependencies import require_active_company
 from app.database import sessions_collection
 from app.schemas import (
     AddToCartRequest,
@@ -26,6 +26,10 @@ from app.services.commerce import (
     get_or_create_cart,
     search_products,
 )
+from app.services.security_evaluation import (
+    assess_conclusiveness,
+    evaluate_webhook_metadata,
+)
 from app.services.test_runs import (
     complete_test_run,
     create_test_run,
@@ -33,10 +37,6 @@ from app.services.test_runs import (
     get_test_run,
     list_test_runs,
     start_test_run,
-)
-from app.services.security_evaluation import (
-    assess_conclusiveness,
-    evaluate_webhook_metadata,
 )
 from app.services.webhook_adapter import WebhookAdapterError, send_webhook_message
 

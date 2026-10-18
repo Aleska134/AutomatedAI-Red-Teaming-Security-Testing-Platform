@@ -365,6 +365,18 @@ inventory updates, confirmation enforcement, tool allowlisting, basic
 prompt-injection signatures, authentication and tenant isolation, SSRF
 blocking, secret storage, and inconclusive-run reporting.
 
+### Linting and dependencies
+
+All dependencies in `requirements.txt` are pinned to exact versions so every
+install (local, CI, Heroku) is reproducible. Code is linted with
+[ruff](https://docs.astral.sh/ruff/) (rules in `ruff.toml`); CI runs it on every
+push and pull request:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .          # add --fix to auto-fix import order and similar issues
+```
+
 ## Security model
 
 This is a security tool, so the platform itself is hardened. Phase 1 of the

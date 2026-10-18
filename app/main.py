@@ -1,7 +1,8 @@
 from fastapi import FastAPI
-from app.database import ping_database
-from app.routers import router as api_router # <-- Importamos nuestro router
+
 from app.auth.router import router as auth_router
+from app.database import ping_database
+from app.routers import router as api_router  # <-- Importamos nuestro router
 from app.services.accounts import ensure_admin_user
 from app.services.commerce import seed_commerce_data
 

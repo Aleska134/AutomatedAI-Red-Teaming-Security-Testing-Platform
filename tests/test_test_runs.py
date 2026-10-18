@@ -1,6 +1,5 @@
 import uuid
 
-
 from app.database import sessions_collection
 from app.services.test_runs import (
     complete_test_run,

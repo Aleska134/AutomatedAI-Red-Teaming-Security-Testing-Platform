@@ -1,6 +1,8 @@
 import asyncio
 import json
-from app.services.agents import get_target_response, get_attacker_response, run_security_audit
+
+from app.services.agents import get_attacker_response, get_target_response, run_security_audit
+
 
 async def run_redteam_simulation(turns: int = 4):
     print("🚀 Starting AI Red Teaming Simulation...")
