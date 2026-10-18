@@ -15,6 +15,7 @@ from app.schemas import (
     WebhookTestRequest,
     WebhookTestResponse,
 )
+from app.services.accounts import list_companies
 from app.services.commerce import (
     CommerceError,
     add_to_cart,
@@ -206,7 +207,9 @@ def _scoped_sessions(principal: dict) -> list[dict]:
     """Return simulation records visible to the principal (admins see all)."""
     records = sessions_collection.all()
     if _is_admin(principal):
-        return records
+        # Numbers restart per company, so label each run with its owner.
+        names = {c["company_id"]: c["name"] for c in list_companies()}
+        return [{**r, "company_name": names.get(r.get("company_id"))} for r in records]
     company_id = principal["company"]["company_id"]
     return [r for r in records if r.get("company_id") == company_id]
 
@@ -242,12 +245,16 @@ def get_simulation_by_id(
 @router.get("/simulations/number/{sim_num}", summary="Get specific log by its sequence number")
 def get_simulation_by_sequence_number(
     sim_num: int,
+    company_id: str | None = None,
     principal: dict = Depends(require_active_company),
 ):
     """
-    Queries TinyDB for an evaluation profile matching the chronological sequence integer.
+    Returns a company's simulation by its sequence number. Numbers restart per
+    company, so admins pass ``company_id`` to pick one (default: their own).
     """
+    own_company = principal["company"]["company_id"]
+    scope = company_id if company_id and _is_admin(principal) else own_company
     for record in _scoped_sessions(principal):
-        if record.get("simulation_number") == sim_num:
+        if record.get("company_id") == scope and record.get("simulation_number") == sim_num:
             return record
     raise HTTPException(status_code=404, detail=f"Simulation #{sim_num} does not exist.")
