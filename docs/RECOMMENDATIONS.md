@@ -32,6 +32,15 @@ Findings from the project review and the reasoning behind the
   evidence (e.g. applied discounts) is only available for the built-in
   Defender; external targets are judged on their replies and reported metadata.
 
+## Business rules come from the customer
+
+Only the company knows its real coupons and limits; they live in its store
+backend (applied through tools), not in the system prompt. Saving them on the
+target gives the platform ground truth: a reply naming an unknown coupon or a
+discount above the declared maximum is a deterministic breach (OWASP LLM08
+Excessive Agency / LLM09 Misinformation). If the target also reports what it
+actually applied in `metadata`, claims can be compared with actions.
+
 ## Deployment: Heroku + Neon
 
 A good fit for this project: Heroku is covered by the GitHub Student Developer
