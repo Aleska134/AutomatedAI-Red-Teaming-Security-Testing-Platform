@@ -3,8 +3,6 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from tinydb import Query
-
 from app.database import sessions_collection
 
 
@@ -59,7 +57,7 @@ def update_test_run(run_id: str, **fields: Any) -> dict[str, Any]:
     """
     fields.pop("run_id", None)
     fields.pop("session_id", None)
-    sessions_collection.update(fields, Query().run_id == run_id)
+    sessions_collection.update(fields, run_id=run_id)
     result = get_test_run(run_id)
     if result is None:
         raise KeyError(f"Test run {run_id} was not found.")
@@ -94,7 +92,7 @@ def get_test_run(run_id: str, company_id: str | None = None) -> dict[str, Any] |
     When ``company_id`` is provided, the run is only returned if it belongs to
     that company, enforcing tenant isolation.
     """
-    result = sessions_collection.search(Query().run_id == run_id)
+    result = sessions_collection.find(run_id=run_id)
     if not result:
         return None
     record = result[0]
@@ -105,7 +103,7 @@ def get_test_run(run_id: str, company_id: str | None = None) -> dict[str, Any] |
 
 def list_test_runs(company_id: str | None = None) -> list[dict[str, Any]]:
     """Return test runs newest first, optionally scoped to one company."""
-    records = sessions_collection.search(Query().run_id.exists())
+    records = [r for r in sessions_collection.all() if r.get("run_id")]
     if company_id is not None:
         records = [r for r in records if r.get("company_id") == company_id]
     return sorted(

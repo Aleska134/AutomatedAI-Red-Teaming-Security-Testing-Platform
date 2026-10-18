@@ -9,8 +9,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from tinydb import Query
-
 from app.auth.encryption import decrypt_secret, encrypt_secret
 from app.database import targets_collection
 
@@ -58,7 +56,7 @@ def create_target(
 
 
 def list_targets(company_id: str) -> list[dict[str, Any]]:
-    records = targets_collection.search(Query().company_id == company_id)
+    records = targets_collection.find(company_id=company_id)
     return sorted(
         (_public(t) for t in records),
         key=lambda item: item["created_at"],
@@ -68,8 +66,8 @@ def list_targets(company_id: str) -> list[dict[str, Any]]:
 
 def get_target(company_id: str, target_id: str) -> Optional[dict[str, Any]]:
     """Return the target (with decrypted auth token) if it belongs to the company."""
-    result = targets_collection.search(
-        (Query().target_id == target_id) & (Query().company_id == company_id)
+    result = targets_collection.find(
+        target_id=target_id, company_id=company_id
     )
     if not result:
         return None
@@ -84,6 +82,6 @@ def delete_target(company_id: str, target_id: str) -> bool:
     if get_target(company_id, target_id) is None:
         return False
     targets_collection.remove(
-        (Query().target_id == target_id) & (Query().company_id == company_id)
+        target_id=target_id, company_id=company_id
     )
     return True

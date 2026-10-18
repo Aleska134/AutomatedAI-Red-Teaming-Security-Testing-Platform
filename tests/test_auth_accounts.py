@@ -1,7 +1,6 @@
 """Deterministic, offline tests for auth, multi-tenancy, and onboarding."""
 
 import pytest
-from tinydb import Query
 
 from app.database import users_collection
 from app.services.accounts import create_password_reset_token
@@ -177,7 +176,7 @@ def test_reset_with_invalid_token_rejected(api_client):
 def test_reset_token_is_stored_hashed(api_client):
     register_active_company(api_client, "Acme", "hash@test.local")
     token = create_password_reset_token("hash@test.local")
-    stored = users_collection.get(Query().email == "hash@test.local")["reset_token"]
+    stored = users_collection.get(email="hash@test.local")["reset_token"]
     assert stored and stored != token
 
 
@@ -219,7 +218,7 @@ def test_target_auth_token_is_encrypted_at_rest(api_client):
         json={"name": "bot", "webhook_url": "https://bot.test/chat", "auth_token": "s3cret-token"},
         headers={"Authorization": f"Bearer {token}"},
     ).json()
-    stored = targets_collection.get(Query().target_id == created["target_id"])
+    stored = targets_collection.get(target_id=created["target_id"])
     assert "s3cret-token" not in str(stored)
     assert get_target(company_id, created["target_id"])["auth_token"] == "s3cret-token"
 
