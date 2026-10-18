@@ -109,9 +109,9 @@ running.
 | Method | Endpoint | Purpose |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/commerce/products` | Search the demo catalog |
-| `GET` | `/api/v1/commerce/carts/{customer_id}` | Retrieve a customer cart |
-| `POST` | `/api/v1/commerce/carts/items` | Add an item directly to a cart |
-| `POST` | `/api/v1/commerce/checkout` | Complete a demo checkout |
+| `GET` | `/api/v1/commerce/cart` | Retrieve your company's sandbox cart |
+| `POST` | `/api/v1/commerce/carts/items` | Add an item to the sandbox cart |
+| `POST` | `/api/v1/commerce/checkout` | Complete a sandbox checkout |
 | `POST` | `/api/v1/commerce/chat` | Chat with the commerce Defender |
 | `POST` | `/api/v1/simulation/loop` | Run an attacker-versus-defender simulation |
 | `GET` | `/api/v1/simulations` | Retrieve simulation records |
@@ -119,17 +119,15 @@ running.
 | `GET` | `/api/v1/test-runs/{run_id}` | Retrieve one persisted test run |
 | `POST` | `/api/v1/integrations/webhook/test` | Test an external chatbot through the v1 webhook contract |
 
-The seeded demo customer is:
-
-```text
-customer-demo-001
-```
+Every endpoint except the catalog search requires a Bearer token from an
+active company. Commerce calls never accept a `customer_id` from the client:
+each company automatically gets an isolated sandbox customer
+(`sandbox-<company_id>`) derived from its token.
 
 Example conversational request:
 
 ```json
 {
-  "customer_id": "customer-demo-001",
   "message": "Show me the available wireless headphones",
   "history": []
 }
@@ -140,7 +138,6 @@ response together with the next message:
 
 ```json
 {
-  "customer_id": "customer-demo-001",
   "message": "Add one of those headphones to my cart",
   "history": [
     {
@@ -155,7 +152,8 @@ response together with the next message:
 }
 ```
 
-Checkout requires an explicit confirmation such as:
+Checkout requires an explicit confirmation (purchase intent alone, such as
+"I want to buy headphones", is not enough), for example:
 
 ```text
 I confirm that I want to purchase the items in my cart.
@@ -197,10 +195,12 @@ includes the company id and role.
 | `GET` | `/api/v1/targets` | List this company's targets |
 | `POST` | `/api/v1/targets/{id}/test` | Run the scope-boundary probe against a saved target |
 
-Password reset: there is no email service in local mode, so
-`/auth/forgot-password` returns the reset token directly in the response (and
-the dashboard displays it) so the flow is usable and testable offline. A
-production deployment would email the token and omit it from the response.
+Password reset: `/auth/forgot-password` always returns the same generic
+message and **never** includes the reset token, which must reach the account
+owner out of band. Until an email service is added, `APP_ENV=development`
+prints the token to the backend log. Tokens are random, single-use, expire
+after one hour, and are stored only as SHA-256 hashes. Changing or resetting a
+password revokes every previously issued JWT.
 
 All simulation, webhook, and data endpoints now require an active company. A
 company only ever sees its own records; admins retain a full cross-company view.
@@ -223,7 +223,9 @@ End-to-end flow (local):
 1. Start the reference chatbot in one terminal (hardened on port 8100).
 2. Start this platform's backend and dashboard, then sign in.
 3. As an **admin**, activate the company you want to test with.
-4. As that **company**, register a target with the URL above (note the required
+4. Set `ALLOW_PRIVATE_WEBHOOKS=true` in `.env` (localhost targets are blocked
+   by the SSRF protection otherwise).
+5. As that **company**, register a target with the URL above (note the required
    `/api/v1/chat` path) and run the scope-boundary test. The hardened target
    stays within store scope; the weak target can be made to answer off-topic.
 
@@ -256,8 +258,22 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Only needed when LLM_PROVIDER=gemini (Gemini has a generous free tier):
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Authentication (set a strong secret in any real deployment)
+# "development" enables local conveniences (built-in JWT secret, reset tokens
+# printed to the log). Any other value, or leaving it unset, is treated as
+# production: the app refuses to start without a 32+ character JWT secret.
+APP_ENV=development
+
+# Authentication. Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"
 JWT_SECRET_KEY=change-me-to-a-long-random-string
+# Optional separate key for encrypting stored target tokens (defaults to the
+# JWT secret). Changing it makes saved target tokens unreadable.
+TARGET_ENCRYPTION_KEY=
+
+# Allow webhook targets on localhost/private networks. Local development only.
+ALLOW_PRIVATE_WEBHOOKS=false
+
+# Optional database file location (default: local_db.json).
+DB_PATH=local_db.json
 ACCESS_TOKEN_EXPIRE_MINUTES=720
 
 # Optional first-admin bootstrap. When both are set, an active admin account
@@ -275,7 +291,13 @@ and provide a `GEMINI_API_KEY` to run simulations against Google Gemini
 (`gemini-flash-latest` by default) instead of OpenAI — useful for staying
 within Gemini's free tier. Override the model with `OPENAI_MODEL` or
 `GEMINI_MODEL` if needed. If a provider is unavailable, simulations still
-complete using deterministic fallbacks rather than failing.
+complete using deterministic fallbacks rather than failing, but the run is
+marked **inconclusive** (`conclusive: false` plus an `inconclusive_reason`)
+instead of "secure".
+
+> The Defender's tool-calling path still uses OpenAI. With `LLM_PROVIDER=gemini`
+> and no `OPENAI_API_KEY`, Defender turns are reported as unavailable and runs
+> as inconclusive.
 
 Each LLM call is bounded by `LLM_REQUEST_TIMEOUT` (seconds, default `30`) with
 no retries, so a slow or unavailable provider degrades to the deterministic
@@ -319,27 +341,47 @@ streamlit run app/frontend.py
 ## Testing
 
 The automated tests intentionally cover the deterministic parts of the system
-without calling OpenAI, which keeps them fast and avoids API usage:
+without calling any LLM provider or the network, which keeps them fast and
+avoids API usage. They run against a temporary database, so your
+`local_db.json` is never touched:
 
 ```bash
 python -m pytest
 ```
 
 The suite currently covers catalog search, cart and checkout behavior,
-inventory updates, confirmation enforcement, tool allowlisting, and basic
-prompt-injection signatures.
+inventory updates, confirmation enforcement, tool allowlisting, basic
+prompt-injection signatures, authentication and tenant isolation, SSRF
+blocking, secret storage, and inconclusive-run reporting.
+
+## Security model
+
+This is a security tool, so the platform itself is hardened. Phase 1 of the
+[roadmap](docs/ROADMAP.md) closed these issues, each covered by tests:
+
+| Risk | Mitigation |
+| :--- | :--- |
+| Account takeover via password reset | Reset token never returned by the API; stored hashed; 1-hour expiry |
+| Forged admin tokens | App refuses to start without a 32+ char `JWT_SECRET_KEY` outside development |
+| Stolen sessions after password change | JWTs carry a token version that is bumped on change/reset |
+| Cross-tenant cart access (IDOR) | Commerce endpoints require auth; customer derived from the token |
+| SSRF through webhooks | Hosts must resolve to public IPs; redirects not followed |
+| Plaintext third-party secrets | Target tokens encrypted at rest (Fernet) |
+| False "secure" verdicts on provider outage | Shield outages recorded as `unavailable`; runs marked inconclusive |
+| Unconfirmed purchases | Purchase intent alone does not authorize checkout |
+| Tests wiping local data | Configurable `DB_PATH`; tests use a temporary database |
+
+Known limitations (planned): no rate limiting on auth endpoints yet, the SSRF
+check is vulnerable to DNS rebinding between validation and request, and
+TinyDB is not safe under concurrent writes. See
+[docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
 
 ## Project status and roadmap
 
-This repository is an evolving product prototype. The next major areas are:
-
-- Hybrid deterministic and LLM-based security evaluation.
-- Evidence records for tool calls and business-rule violations.
-- Merchant dashboard for test runs, trends, and findings.
-- Scheduled daily security tests.
-- Human escalation triggers for suspicious or high-risk conversations.
-- Generated product images and richer catalog data.
-- Authentication, multi-tenant merchant isolation, and production storage.
+This repository is an evolving product prototype. The phased plan (security
+hardening → solid foundation → product differentiators → portfolio launch →
+commercialization) lives in [docs/ROADMAP.md](docs/ROADMAP.md), with the
+reasoning behind it in [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md).
 
 The current commerce data is mock data designed for safe local testing. It does
 not connect to real payment providers, fulfillment systems, or customer data.
