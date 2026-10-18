@@ -150,10 +150,6 @@ class ForgotPasswordRequest(BaseModel):
 
 class ForgotPasswordResponse(BaseModel):
     message: str
-    # In local/dev (no email service) the reset token is returned directly so
-    # the flow is usable and testable. A production deployment would email it
-    # instead and omit this field.
-    reset_token: str | None = None
 
 
 class ResetPasswordRequest(BaseModel):

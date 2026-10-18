@@ -7,6 +7,7 @@ from app.auth.dependencies import (
     require_active_company,
     require_admin,
 )
+from app.auth.config import IS_DEVELOPMENT
 from app.auth.security import create_access_token
 from app.schemas import (
     AuthResponse,
@@ -24,6 +25,7 @@ from app.schemas import (
     WebhookTestResponse,
 )
 from app.services.accounts import (
+    AccountError,
     AuthenticationError,
     DuplicateAccountError,
     InactiveAccountError,
@@ -49,6 +51,7 @@ def _auth_response(user: dict, company: dict) -> AuthResponse:
         subject=user["email"],
         company_id=company["company_id"],
         role=user["role"],
+        token_version=user.get("token_version", 0),
     )
     return AuthResponse(
         access_token=token,
@@ -124,12 +127,15 @@ def forgot_password(payload: ForgotPasswordRequest):
     """Start a password reset (no authentication required).
 
     Always responds generically so the endpoint does not reveal whether an
-    account exists. When the email is known, a reset token is issued.
+    account exists. The token is NEVER returned to the caller: it must reach
+    the account owner out of band. Until an email service exists, development
+    mode prints it to the server log only.
     """
     token = create_password_reset_token(payload.email)
+    if token and IS_DEVELOPMENT:
+        print(f"[dev] Password reset token for {payload.email}: {token}")
     return ForgotPasswordResponse(
         message="If an account exists for that email, a reset token has been issued.",
-        reset_token=token,
     )
 
 
@@ -157,10 +163,12 @@ def admin_update_company_status(
     payload: CompanyStatusUpdate,
     _: dict = Depends(require_admin),
 ):
+    if get_company(company_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found.")
     try:
         return set_company_status(company_id, payload.status)
-    except Exception as error:  # noqa: BLE001
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except AccountError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
 
 
 # --- Targets: per-company onboarding -------------------------------------- #

@@ -6,6 +6,8 @@ until an admin activates it, which gives the platform owner explicit control
 over who gets access (useful for an approval-gated or subscription service).
 """
 
+import hashlib
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -45,6 +47,15 @@ class InactiveAccountError(AccountError):
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _hash_reset_token(token: str) -> str:
+    """Reset tokens are stored hashed so a database leak cannot be replayed."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _bump_token_version(user: dict[str, Any]) -> int:
+    return int(user.get("token_version", 0)) + 1
 
 
 def _normalize_email(email: str) -> str:
@@ -157,7 +168,10 @@ def change_password(email: str, current_password: str, new_password: str) -> Non
     if user is None or not verify_password(current_password, user["password_hash"]):
         raise AuthenticationError("The current password is incorrect.")
     users_collection.update(
-        {"password_hash": hash_password(new_password)},
+        {
+            "password_hash": hash_password(new_password),
+            "token_version": _bump_token_version(user),
+        },
         Query().email == _normalize_email(email),
     )
 
@@ -172,10 +186,10 @@ def create_password_reset_token(email: str) -> Optional[str]:
     user = get_user_by_email(email)
     if user is None:
         return None
-    token = uuid.uuid4().hex
+    token = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     users_collection.update(
-        {"reset_token": token, "reset_token_expires": expires},
+        {"reset_token": _hash_reset_token(token), "reset_token_expires": expires},
         Query().email == _normalize_email(email),
     )
     return token
@@ -185,7 +199,7 @@ def reset_password_with_token(token: str, new_password: str) -> None:
     """Consume a valid, unexpired reset token and set a new password."""
     if not token:
         raise AuthenticationError("Invalid or expired reset token.")
-    result = users_collection.search(Query().reset_token == token)
+    result = users_collection.search(Query().reset_token == _hash_reset_token(token))
     if not result:
         raise AuthenticationError("Invalid or expired reset token.")
     user = result[0]
@@ -195,6 +209,7 @@ def reset_password_with_token(token: str, new_password: str) -> None:
     users_collection.update(
         {
             "password_hash": hash_password(new_password),
+            "token_version": _bump_token_version(user),
             "reset_token": None,
             "reset_token_expires": None,
         },

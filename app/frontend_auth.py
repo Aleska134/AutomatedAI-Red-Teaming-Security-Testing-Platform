@@ -118,10 +118,9 @@ def _forgot_password_form(api_base_url: str) -> None:
             return
         data = response.json()
         st.info(data.get("message", "Request received."))
-        # In local/dev the token is returned directly so the flow is usable.
-        if data.get("reset_token"):
-            st.code(data["reset_token"], language="text")
-            st.caption("Copy this token into the 'Reset password' tab.")
+        # The API never returns the token; in development it is printed to the
+        # backend log until an email service is wired in.
+        st.caption("Local development: copy the token from the backend server log.")
 
     st.markdown("---")
     with st.form("reset_form"):

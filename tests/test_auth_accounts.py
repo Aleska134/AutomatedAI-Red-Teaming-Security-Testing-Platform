@@ -1,5 +1,10 @@
 """Deterministic, offline tests for auth, multi-tenancy, and onboarding."""
 
+import pytest
+from tinydb import Query
+
+from app.database import users_collection
+from app.services.accounts import create_password_reset_token
 from tests.conftest import register_active_company
 
 
@@ -138,8 +143,9 @@ def test_forgot_and_reset_password_flow(api_client):
     register_active_company(api_client, "Acme", "fr@test.local", password="old-pass-1")
     forgot = api_client.post("/api/v1/auth/forgot-password", json={"email": "fr@test.local"})
     assert forgot.status_code == 200
-    token = forgot.json()["reset_token"]
-    assert token
+    # The token must never be exposed through the API response.
+    assert "reset_token" not in forgot.json()
+    token = create_password_reset_token("fr@test.local")
 
     reset = api_client.post(
         "/api/v1/auth/reset-password", json={"token": token, "new_password": "reset-pass-9"}
@@ -155,8 +161,9 @@ def test_forgot_password_unknown_email_is_generic(api_client):
         "/api/v1/auth/forgot-password", json={"email": "nobody@test.local"}
     )
     assert response.status_code == 200
-    # No token for an unknown account, but the message does not reveal that.
-    assert response.json()["reset_token"] is None
+    # Same generic response whether or not the account exists.
+    assert "reset_token" not in response.json()
+    assert create_password_reset_token("nobody@test.local") is None
 
 
 def test_reset_with_invalid_token_rejected(api_client):
@@ -165,3 +172,38 @@ def test_reset_with_invalid_token_rejected(api_client):
         json={"token": "bogus-token", "new_password": "whatever-1"},
     )
     assert response.status_code == 400
+
+
+def test_reset_token_is_stored_hashed(api_client):
+    register_active_company(api_client, "Acme", "hash@test.local")
+    token = create_password_reset_token("hash@test.local")
+    stored = users_collection.get(Query().email == "hash@test.local")["reset_token"]
+    assert stored and stored != token
+
+
+def test_password_change_revokes_existing_tokens(api_client):
+    register_active_company(api_client, "Acme", "rev@test.local", password="old-pass-1")
+    old_token = api_client.post(
+        "/api/v1/auth/login", json={"email": "rev@test.local", "password": "old-pass-1"}
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {old_token}"}
+    assert api_client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "old-pass-1", "new_password": "new-pass-22"},
+        headers=headers,
+    ).status_code == 200
+    assert api_client.get("/api/v1/auth/me", headers=headers).status_code == 401
+
+
+def test_jwt_secret_required_outside_development(monkeypatch):
+    import importlib
+
+    import app.auth.config as config
+
+    monkeypatch.setenv("APP_ENV", "production")
+    # A weak secret is rejected (an explicit value also stops .env overriding it).
+    monkeypatch.setenv("JWT_SECRET_KEY", "too-short")
+    with pytest.raises(RuntimeError):
+        importlib.reload(config)
+    monkeypatch.setenv("APP_ENV", "development")
+    importlib.reload(config)

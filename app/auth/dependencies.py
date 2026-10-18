@@ -40,6 +40,9 @@ def get_current_principal(
     user = get_user_by_email(claims.get("sub", ""))
     if user is None:
         raise _UNAUTHORIZED
+    # Tokens issued before the last password change/reset are revoked.
+    if claims.get("ver", 0) != user.get("token_version", 0):
+        raise _UNAUTHORIZED
     company = get_company(user["company_id"])
     if company is None:
         raise _UNAUTHORIZED
