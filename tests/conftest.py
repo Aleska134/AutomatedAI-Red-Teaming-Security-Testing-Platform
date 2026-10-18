@@ -1,3 +1,11 @@
+import os
+import tempfile
+
+# Point the app at a throwaway database BEFORE any app module is imported, so
+# the suite never truncates the developer's real local_db.json.
+os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(prefix="redteam-tests-"), "test_db.json")
+os.environ.setdefault("APP_ENV", "development")
+
 import uuid
 
 import pytest
