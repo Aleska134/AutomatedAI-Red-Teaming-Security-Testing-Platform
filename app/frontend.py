@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
+    api_delete,
     api_get,
     api_post,
     current_role,
@@ -143,6 +144,30 @@ def _split_list(raw):
 def fetch_targets():
     response = api_get(API_BASE_URL, "/targets", timeout=30)
     return response.json() if response.status_code == 200 else []
+
+
+def delete_target_request(target_id: str):
+    """Delete a saved target by id. Returns the HTTP response."""
+    return api_delete(API_BASE_URL, f"/targets/{target_id}", timeout=30)
+
+
+def render_target_manager(targets):
+    """List saved targets with a delete button for each one."""
+    if not targets:
+        return
+    with st.expander("🗂️ Manage saved targets"):
+        st.caption("Remove targets you no longer need (for example, duplicates).")
+        for target in targets:
+            left, right = st.columns([5, 1])
+            left.markdown(f"**{target['name']}**")
+            left.caption(target["webhook_url"])
+            if right.button("Delete", key=f"del-{target['target_id']}"):
+                response = delete_target_request(target["target_id"])
+                if response.status_code == 204:
+                    st.success(f"Deleted '{target['name']}'.")
+                    st.rerun()
+                else:
+                    st.error(humanize_error(response, "Could not delete target."))
 
 
 def render_target_form():
@@ -502,6 +527,7 @@ with tab3:
 
     render_target_form()
     targets = fetch_targets()
+    render_target_manager(targets)
     target_options = [None] + [t["target_id"] for t in targets]
     target_names = {t["target_id"]: f"{t['name']} ({t['webhook_url']})" for t in targets}
     selected_target = st.selectbox(
