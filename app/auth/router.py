@@ -45,7 +45,7 @@ from app.services.accounts import (
     set_company_status,
 )
 from app.services.security_evaluation import evaluate_webhook_metadata
-from app.services.targets import create_target, get_target, list_targets
+from app.services.targets import create_target, delete_target, get_target, list_targets
 from app.services.webhook_adapter import (
     WebhookAdapterError,
     send_webhook_message,
@@ -215,6 +215,20 @@ def create_company_target(
 @router.get("/targets", response_model=list[TargetView])
 def list_company_targets(principal: dict = Depends(require_active_company)):
     return list_targets(principal["company"]["company_id"])
+
+
+@router.delete("/targets/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_company_target(
+    target_id: str,
+    principal: dict = Depends(require_active_company),
+):
+    """Remove a saved target. Scoped to the company, so one tenant can never
+    delete another tenant's target (delete_target checks ownership)."""
+    removed = delete_target(principal["company"]["company_id"], target_id)
+    if not removed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Target not found."
+        )
 
 
 @router.post("/targets/{target_id}/test", response_model=WebhookTestResponse)
