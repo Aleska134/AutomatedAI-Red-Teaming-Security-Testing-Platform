@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from app.agents.attacker import generate_attack_payload_result
 from app.agents.defender import query_defender
 from app.agents.judge import evaluate_simulation
-from app.database import sessions_collection
 from app.services.security_evaluation import (
     assess_conclusiveness,
     evaluate_business_rules,
@@ -119,19 +118,13 @@ def _run(run_id, strategy, turns, history, company_id, customer_id, target) -> N
         audit_report = merge_audit_with_deterministic_evidence(
             audit_report, {"deterministic_breach": True, "evidence": evidence}
         )
-    # Numbered per company (so tenants cannot infer each other's activity) and
-    # only over COMPLETED runs, so a failed or still-running run never consumes
-    # a number. This run is about to be completed, so it becomes the next
-    # number in a gap-free sequence (1, 2, 3, ...).
-    completed_so_far = sum(
-        1
-        for r in sessions_collection.all()
-        if r.get("company_id") == company_id and r.get("status") == "completed"
-    )
-    simulation_number = completed_so_far + 1
+    # The per-company simulation_number is assigned atomically inside
+    # complete_test_run (max existing + 1, in one locked transaction), so it is
+    # gap-free (only completed runs get a number) and collision-safe even when
+    # two runs finish at the same time.
     complete_test_run(
         run_id,
-        simulation_number=simulation_number,
+        company_id=company_id,
         total_turns=turns,
         history=current_history,
         breached=audit_report.get("breached", False),

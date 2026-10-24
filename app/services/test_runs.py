@@ -66,16 +66,28 @@ def update_test_run(run_id: str, **fields: Any) -> dict[str, Any]:
     return result
 
 
-def complete_test_run(run_id: str, **fields: Any) -> dict[str, Any]:
-    """Mark a run completed while preserving its audit data."""
+def complete_test_run(run_id: str, *, company_id: str, **fields: Any) -> dict[str, Any]:
+    """Mark a run completed and atomically assign its per-company number.
+
+    The simulation_number is allocated inside one locked transaction
+    (``max existing for this company + 1``), so concurrent completions can never
+    collide on the same number, and only completed runs ever receive one.
+    """
     fields.pop("status", None)
     fields.pop("completed_at", None)
-    return update_test_run(
-        run_id,
-        **fields,
-        status="completed",
-        completed_at=utc_now(),
+    fields.pop("simulation_number", None)
+    fields.pop("run_id", None)
+    fields.pop("session_id", None)
+    sessions_collection.update_with_sequence(
+        {**fields, "status": "completed", "completed_at": utc_now()},
+        sequence_field="simulation_number",
+        scope={"company_id": company_id},
+        run_id=run_id,
     )
+    result = get_test_run(run_id)
+    if result is None:
+        raise KeyError(f"Test run {run_id} was not found.")
+    return result
 
 
 def fail_test_run(run_id: str, error: str) -> dict[str, Any]:
