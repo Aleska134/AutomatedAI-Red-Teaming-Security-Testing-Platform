@@ -529,6 +529,71 @@ export API_BASE_URL="https://your-forwarded-api-url/api/v1"
 streamlit run app/frontend.py
 ```
 
+## Deploy (free tier)
+
+The platform splits cleanly into three free-tier pieces: the **FastAPI backend**
+on [Render](https://render.com), the **Streamlit dashboard** on
+[Streamlit Community Cloud](https://streamlit.io/cloud), and a **Neon Postgres**
+database. No LLM credits are required — without a provider key the platform runs
+on deterministic fallbacks (runs are marked *inconclusive*, never *secure*).
+
+```text
+Streamlit Community Cloud          Render (free)              Neon
+  app/frontend.py      ──HTTP──►   FastAPI backend   ──────►  Postgres
+  env: API_BASE_URL                env: DATABASE_URL, JWT_SECRET_KEY, ...
+```
+
+### 1. Database — Neon
+
+1. Create a free project at [neon.tech](https://neon.tech).
+2. Copy the **pooled** connection string (ends with `?sslmode=require`). You
+   will paste it as `DATABASE_URL` on Render. Tables are created automatically
+   on first startup.
+
+### 2. Backend — Render
+
+The repo ships a [`render.yaml`](render.yaml) blueprint:
+
+1. On [render.com](https://render.com), choose **New → Blueprint** and connect
+   this repository.
+2. Render reads `render.yaml` and provisions a free web service (installs
+   `requirements.txt`, runs uvicorn on its `$PORT`, health-checks `/`).
+3. It sets `APP_ENV=production`, auto-generates a strong `JWT_SECRET_KEY`, and
+   keeps `ALLOW_PRIVATE_WEBHOOKS=false` (SSRF protection — never enable this in a
+   deployed environment). Fill in the `sync: false` variables in
+   **Environment**:
+   - `DATABASE_URL` — the Neon pooled string from step 1.
+   - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — bootstrap your admin account (needed to
+     activate companies before they can run tests).
+   - *(optional)* `GEMINI_API_KEY` + `LLM_PROVIDER=gemini` (or `OPENAI_API_KEY`)
+     to enable live LLM runs. See the commented block in `render.yaml`.
+4. Note the service URL, e.g. `https://ai-red-teaming-api.onrender.com`, and
+   verify: `curl https://<service>.onrender.com/` → `{"status":"online", ...}`.
+   Interactive API docs live at `/docs`.
+
+### 3. Dashboard — Streamlit Community Cloud
+
+1. At [share.streamlit.io](https://share.streamlit.io), create an app from this
+   repo with **main file** `app/frontend.py`.
+2. In the app's **Advanced settings → Secrets**, set the backend URL (note the
+   `/api/v1` suffix):
+
+   ```toml
+   API_BASE_URL = "https://ai-red-teaming-api.onrender.com/api/v1"
+   ```
+3. Deploy. The dashboard opens on the sign-in screen; log in with the admin
+   account from step 2, then register targets and run simulations.
+
+> **Free-tier note:** Render's free backend sleeps after ~15 minutes of
+> inactivity, so the first dashboard action after idle takes ~30–60 seconds
+> while it wakes; later requests are fast. To keep it warm, ping `/` on a
+> schedule (e.g. UptimeRobot every 10 minutes).
+
+To attack the companion [`AI-Chatbot`](https://github.com/Aleska134/AI-Chatbot)
+reference target once both are deployed, register its public
+`/api/v1/chat` URL as a target with its bearer token. Because the target is
+public (not localhost), `ALLOW_PRIVATE_WEBHOOKS` stays `false`.
+
 ## Testing
 
 The automated tests intentionally cover the deterministic parts of the system
