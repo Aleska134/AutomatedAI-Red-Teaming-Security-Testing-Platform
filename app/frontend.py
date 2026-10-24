@@ -29,7 +29,12 @@ from app.services.merchant_reporting import (  # noqa: E402
 )
 from app.services.owasp import owasp_label  # noqa: E402
 from app.services.run_report import render_run_report  # noqa: E402
-from app.services.security_scenarios import get_categories, get_scenarios  # noqa: E402
+from app.services.security_scenarios import (  # noqa: E402
+    get_categories,
+    get_scenarios,
+    scenarios_for_target,
+    select_scenarios,
+)
 
 # Configure the core Streamlit page parameters
 st.set_page_config(
@@ -612,9 +617,13 @@ with tab3:
     with merchant_col1:
         assessment_mode = st.radio(
             "Assessment type",
-            options=["Full Security Assessment", "Focused Test"],
+            options=["Full Security Assessment", "Focused Test", "Pick specific tests"],
             horizontal=True,
             key="merchant_assessment_mode",
+            help=(
+                "Full runs every test. Focused runs one risk category. "
+                "Pick specific tests lets you choose exactly which tests to run."
+            ),
         )
     with merchant_col2:
         merchant_turns = st.number_input(
@@ -646,15 +655,34 @@ with tab3:
             key="merchant_security_category",
         )
 
-    scenarios = [
-        scenario
-        for scenario in get_scenarios(selected_category)
-        # A saved target can run every scenario; the simulator skips webhook-only ones.
-        if selected_target or getattr(scenario, "execution_mode", "simulator") == "simulator"
-    ]
+    has_target = selected_target is not None
+    if assessment_mode == "Pick specific tests":
+        # Offer every runnable test and let the user choose which ones to run.
+        pickable = scenarios_for_target(get_scenarios(), has_target=has_target)
+        all_names = [scenario.name for scenario in pickable]
+        chosen_names = st.multiselect(
+            "Choose the tests to run",
+            options=all_names,
+            default=all_names,
+            key="merchant_selected_tests",
+            help="Each selected test is one simulation run against the target.",
+        )
+        scenarios = select_scenarios(
+            "pick", has_target=has_target, chosen_names=chosen_names
+        )
+    elif assessment_mode == "Focused Test":
+        scenarios = select_scenarios(
+            "focused", has_target=has_target, category=selected_category
+        )
+    else:
+        scenarios = select_scenarios("full", has_target=has_target)
+
     st.markdown("#### Included simulator scenarios")
     if not scenarios:
-        st.info("This category is available through the connected chatbot webhook below.")
+        if assessment_mode == "Pick specific tests":
+            st.info("Select at least one test above to run.")
+        else:
+            st.info("This category is available through the connected chatbot webhook below.")
     st.dataframe(
         [
             {
@@ -668,10 +696,19 @@ with tab3:
         width="stretch",
         hide_index=True,
     )
+    # Each scenario is one run; with an LLM provider that is one attacker call
+    # per turn plus a judge call, so warn before launching several at once.
+    if len(scenarios) > 1:
+        st.caption(
+            f"⚠️ This will run **{len(scenarios)} tests** ({len(scenarios)} simulation "
+            f"runs). If your attacker/judge use an LLM provider, each run consumes "
+            f"API tokens — pick fewer tests or lower the turns to spend less."
+        )
     run_merchant_test = st.button(
         "🚀 Run security assessment",
         type="primary",
         width="stretch",
+        disabled=not scenarios,
     )
 
     if run_merchant_test:
