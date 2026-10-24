@@ -15,6 +15,7 @@ from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
     api_get,
     api_post,
     current_role,
+    humanize_error,
     is_authenticated,
     render_admin_panel,
     render_auth_gate,
@@ -149,7 +150,10 @@ def render_target_form():
     with st.expander("➕ Register a chatbot target"):
         with st.form("create_target", clear_on_submit=True):
             name = st.text_input("Name", placeholder="TechMart weak")
-            url = st.text_input("Webhook URL", placeholder="http://localhost:8101/api/v1/chat")
+            url = st.text_input(
+                "Webhook URL",
+                placeholder="https://your-chatbot.onrender.com/api/v1/chat",
+            )
             token = st.text_input("Bearer token (optional)", type="password")
             st.caption("Business rules (optional, comma-separated)")
             coupons = st.text_input("Valid coupons", placeholder="TECH10")
@@ -175,7 +179,7 @@ def render_target_form():
                 if response.status_code == 201:
                     st.success(f"Target '{name}' saved.")
                 else:
-                    st.error(f"Could not save target: {response.text}")
+                    st.error(humanize_error(response, "Could not save target."))
 
 
 def run_webhook_scope_test(webhook_url, auth_token):
