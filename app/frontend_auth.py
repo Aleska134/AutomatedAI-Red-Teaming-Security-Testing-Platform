@@ -8,7 +8,6 @@ for signed-out users, and a compact profile section in the sidebar.
 import requests
 import streamlit as st
 
-
 # Friendly names for the fields the API validates, so messages never show a
 # raw key like "company_name".
 _FIELD_LABELS = {
