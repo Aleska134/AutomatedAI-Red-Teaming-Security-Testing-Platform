@@ -153,6 +153,50 @@ class Collection:
                 session.add(row)
             session.commit()
 
+    def update_with_sequence(
+        self,
+        fields: dict[str, Any],
+        *,
+        sequence_field: str,
+        scope: dict[str, Any],
+        **filters: Any,
+    ) -> int:
+        """Atomically assign the next per-scope sequence number, then update.
+
+        In one transaction: find the highest ``sequence_field`` value among rows
+        matching ``scope`` (stored inside each row's JSON ``data``), set this
+        row's ``sequence_field`` to that max + 1, merge ``fields``, and commit.
+        Doing the read and the write in a single locked transaction prevents two
+        concurrent completions from reading the same max and colliding on the
+        same number. Returns the assigned sequence number.
+        """
+        with Session(engine) as session:
+            # Lock all of this scope's rows so a concurrent completion waits.
+            scope_rows = session.exec(
+                select(self.model)
+                .where(*[getattr(self.model, k) == v for k, v in scope.items()])
+                .with_for_update()
+            ).all()
+            highest = 0
+            for row in scope_rows:
+                value = row.data.get(sequence_field)
+                if value is not None:
+                    highest = max(highest, int(value))
+            assigned = highest + 1
+
+            target_rows = session.exec(
+                select(self.model).where(*self._where(filters)).with_for_update()
+            ).all()
+            merged_fields = {**fields, sequence_field: assigned}
+            for row in target_rows:
+                merged = {**row.data, **merged_fields}
+                row.data = merged
+                for key in self.keys:
+                    setattr(row, key, merged.get(key))
+                session.add(row)
+            session.commit()
+            return assigned
+
     def remove(self, **filters: Any) -> None:
         with Session(engine) as session:
             session.exec(delete(self.model).where(*self._where(filters)))

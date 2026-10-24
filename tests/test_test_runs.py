@@ -18,6 +18,7 @@ def test_test_run_lifecycle_persists_status_and_timestamps():
             run_id=run_id,
             strategy="social_engineering",
             turns_requested=3,
+            company_id="company-lifecycle",
         )
         assert created["status"] == "queued"
         assert created["started_at"] is None
@@ -28,13 +29,15 @@ def test_test_run_lifecycle_persists_status_and_timestamps():
 
         completed = complete_test_run(
             run_id,
-            simulation_number=1,
+            company_id="company-lifecycle",
             total_turns=3,
             breached=False,
         )
         assert completed["status"] == "completed"
         assert completed["completed_at"]
         assert completed["total_turns"] == 3
+        # The number is assigned automatically (first completed run -> 1).
+        assert completed["simulation_number"] == 1
         assert get_test_run(run_id)["run_id"] == run_id
         assert any(item["run_id"] == run_id for item in list_test_runs())
     finally:
@@ -75,7 +78,8 @@ def test_complete_run_tolerates_splatted_record_with_identifiers():
         record = {**created, "breached": False, "analysis": "ok"}
         record.pop("run_id", None)
         record.pop("session_id", None)
-        completed = complete_test_run(run_id, **record)
+        record.pop("company_id", None)
+        completed = complete_test_run(run_id, company_id="company-xyz", **record)
 
         assert completed["status"] == "completed"
         assert completed["run_id"] == run_id
