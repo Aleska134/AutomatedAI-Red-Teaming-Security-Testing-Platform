@@ -23,6 +23,7 @@ from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
     render_auth_gate,
     render_sidebar_profile,
 )
+from app.services.batch_runner import collect_scenario_results  # noqa: E402
 from app.services.merchant_reporting import (  # noqa: E402
     build_findings,
     build_merchant_report,
@@ -712,32 +713,58 @@ with tab3:
     )
 
     if run_merchant_test:
-        with st.spinner(f"Running {len(scenarios)} security scenario(s)..."):
-            try:
-                results = [
-                    run_security_test(scenario.strategy, int(merchant_turns), selected_target)
-                    for scenario in scenarios
-                ]
-                breached = sum(result.get("is_breached", False) for result in results)
-                st.session_state["last_manual_test"] = {
-                    "scenario_count": len(results),
-                    "breached_count": breached,
-                    "status": "BREACHED" if breached else "SECURED",
-                }
-                fetch_all_simulations.clear()
-                st.rerun()
-            except Exception as error:
-                st.error(f"Security test failed: {error}")
+        # Run each scenario independently: one failing test (e.g. the target
+        # was asleep and timed out) must NOT abort the remaining tests.
+        progress = st.progress(0.0)
+
+        def _run_one(scenario, _total=len(scenarios)):
+            with st.spinner(f"Running '{scenario.name}'..."):
+                return run_security_test(
+                    scenario.strategy, int(merchant_turns), selected_target
+                )
+
+        per_test = []
+        for index, scenario in enumerate(scenarios):
+            per_test.extend(collect_scenario_results([scenario], _run_one))
+            progress.progress((index + 1) / len(scenarios))
+
+        breached = sum(1 for r in per_test if r["outcome"] == "BREACHED")
+        errored = sum(1 for r in per_test if r["outcome"] == "ERROR")
+        st.session_state["last_manual_test"] = {
+            "scenario_count": len(per_test),
+            "breached_count": breached,
+            "error_count": errored,
+            "per_test": per_test,
+        }
+        fetch_all_simulations.clear()
+        st.rerun()
 
     if "last_manual_test" in st.session_state:
         last_test = st.session_state["last_manual_test"]
         st.info(
-            f"Last assessment: {last_test['scenario_count']} scenario(s), "
-            f"{last_test['breached_count']} breach(es), status: "
-            f"{last_test['status']}."
+            f"Last assessment: {last_test['scenario_count']} test(s), "
+            f"{last_test['breached_count']} breach(es)"
+            + (
+                f", {last_test['error_count']} could not run"
+                if last_test.get("error_count")
+                else ""
+            )
+            + "."
         )
+        # Per-test breakdown so a failed test is visible, not hidden behind the
+        # others.
+        for result in last_test.get("per_test", []):
+            icon = {"BREACHED": "🔴", "SECURED": "🟢", "ERROR": "⚠️"}.get(
+                result["outcome"], "•"
+            )
+            if result["outcome"] == "ERROR":
+                st.warning(
+                    f"{icon} **{result['name']}** could not run: {result['error']}"
+                )
+            else:
+                st.write(f"{icon} **{result['name']}** — {result['outcome']}")
         if last_test["breached_count"]:
-            st.warning("The last assessment produced one or more breaches.")
+            st.warning("One or more tests produced a breach.")
 
     st.markdown("---")
     st.markdown("### 🔌 Connected chatbot test")
