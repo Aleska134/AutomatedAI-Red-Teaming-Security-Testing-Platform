@@ -26,6 +26,7 @@ from app.schemas import (
     ResetPasswordRequest,
     SimpleMessage,
     TargetCreateRequest,
+    TargetUpdateRequest,
     TargetView,
     WebhookTestResponse,
 )
@@ -45,7 +46,13 @@ from app.services.accounts import (
     set_company_status,
 )
 from app.services.security_evaluation import evaluate_webhook_metadata
-from app.services.targets import create_target, delete_target, get_target, list_targets
+from app.services.targets import (
+    create_target,
+    delete_target,
+    get_target,
+    list_targets,
+    update_target,
+)
 from app.services.webhook_adapter import (
     WebhookAdapterError,
     send_webhook_message,
@@ -215,6 +222,40 @@ def create_company_target(
 @router.get("/targets", response_model=list[TargetView])
 def list_company_targets(principal: dict = Depends(require_active_company)):
     return list_targets(principal["company"]["company_id"])
+
+
+@router.patch("/targets/{target_id}", response_model=TargetView)
+def update_company_target(
+    target_id: str,
+    payload: TargetUpdateRequest,
+    principal: dict = Depends(require_active_company),
+):
+    """Update a saved target in place. Scoped to the company (a tenant can only
+    edit its own targets). Omitted fields are left unchanged; an empty
+    auth_token keeps the stored one."""
+    if payload.webhook_url is not None:
+        try:
+            validate_webhook_url(payload.webhook_url)
+        except WebhookAdapterError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)
+            ) from error
+    updated = update_target(
+        principal["company"]["company_id"],
+        target_id,
+        name=payload.name,
+        webhook_url=payload.webhook_url,
+        auth_token=payload.auth_token,
+        clear_auth_token=payload.clear_auth_token,
+        business_rules=(
+            payload.business_rules.model_dump() if payload.business_rules else None
+        ),
+    )
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Target not found."
+        )
+    return updated
 
 
 @router.delete("/targets/{target_id}", status_code=status.HTTP_204_NO_CONTENT)

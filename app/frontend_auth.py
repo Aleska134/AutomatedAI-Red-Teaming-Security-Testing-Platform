@@ -111,6 +111,12 @@ def api_delete(api_base_url: str, path: str, **kwargs):
     return requests.delete(f"{api_base_url}{path}", headers=_auth_headers(), **kwargs)
 
 
+def api_patch(api_base_url: str, path: str, json: dict | None = None, **kwargs):
+    return requests.patch(
+        f"{api_base_url}{path}", json=json, headers=_auth_headers(), **kwargs
+    )
+
+
 def is_authenticated() -> bool:
     return bool(st.session_state.get("access_token"))
 

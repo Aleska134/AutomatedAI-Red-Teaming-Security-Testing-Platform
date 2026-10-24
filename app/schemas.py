@@ -162,6 +162,19 @@ class TargetCreateRequest(BaseModel):
     business_rules: BusinessRules | None = None
 
 
+class TargetUpdateRequest(BaseModel):
+    """Partial update for a saved target. Omitted fields are left unchanged.
+
+    Token handling: leave ``auth_token`` empty to keep the stored token; set it
+    to replace the token; set ``clear_auth_token`` to remove it entirely.
+    """
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    webhook_url: str | None = Field(default=None, min_length=1, max_length=2_000)
+    auth_token: str | None = Field(default=None, max_length=2_000)
+    clear_auth_token: bool = False
+    business_rules: BusinessRules | None = None
+
+
 class TargetView(BaseModel):
     target_id: str
     company_id: str
