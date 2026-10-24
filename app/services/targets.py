@@ -81,6 +81,50 @@ def get_target(company_id: str, target_id: str) -> Optional[dict[str, Any]]:
     return target
 
 
+def update_target(
+    company_id: str,
+    target_id: str,
+    *,
+    name: Optional[str] = None,
+    webhook_url: Optional[str] = None,
+    auth_token: Optional[str] = None,
+    clear_auth_token: bool = False,
+    business_rules: Optional[dict[str, Any]] = None,
+) -> Optional[dict[str, Any]]:
+    """Update an existing target in place, scoped to the owning company.
+
+    Only the arguments that are provided change; everything else is left as-is.
+    Token handling: ``auth_token`` set replaces it; ``clear_auth_token`` removes
+    it; otherwise the stored token is kept untouched.
+    Returns the public view, or ``None`` if the target does not belong to the
+    company (so the caller can return 404).
+    """
+    existing = targets_collection.find(target_id=target_id, company_id=company_id)
+    if not existing:
+        return None
+
+    fields: dict[str, Any] = {}
+    if name is not None:
+        fields["name"] = name.strip()
+    if webhook_url is not None:
+        fields["webhook_url"] = webhook_url.strip()
+    if business_rules is not None:
+        fields["business_rules"] = business_rules
+    if clear_auth_token:
+        fields["auth_token_encrypted"] = None
+    elif auth_token:
+        fields["auth_token_encrypted"] = encrypt_secret(auth_token)
+
+    if fields:
+        fields["updated_at"] = _utc_now()
+        targets_collection.update(
+            fields, target_id=target_id, company_id=company_id
+        )
+
+    updated = targets_collection.find(target_id=target_id, company_id=company_id)[0]
+    return _public(updated)
+
+
 def delete_target(company_id: str, target_id: str) -> bool:
     if get_target(company_id, target_id) is None:
         return False
