@@ -1,0 +1,63 @@
+# Render Blueprint for the FastAPI backend.
+#
+# The Streamlit dashboard (app/frontend.py) is deployed separately on Streamlit
+# Community Cloud and points at this service via API_BASE_URL — see the README
+# "Deploy" section. The database is Neon Postgres (set DATABASE_URL below).
+services:
+  - type: web
+    name: ai-red-teaming-api
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    # Render provides $PORT; uvicorn must bind to it.
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"
+    # "/" returns {"status": "online", ...}.
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+
+      # Production hardening: the app refuses to start without a strong
+      # JWT_SECRET_KEY when APP_ENV is not "development".
+      - key: APP_ENV
+        value: production
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # Neon Postgres connection string. Paste the pooled connection string
+      # from the Neon console here (Render -> service -> Environment). Use the
+      # "?sslmode=require" pooled URL. Left blank so no secret lives in git.
+      - key: DATABASE_URL
+        sync: false
+
+      # First-admin bootstrap. On startup, if both are set, an active admin
+      # account is created (or kept in sync). Fill these in the Render dashboard
+      # (sync:false keeps them out of the repo). You need this admin to activate
+      # companies before they can run tests.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # SSRF protection: NEVER enable private/localhost webhook targets in a
+      # deployed environment. Keep this false in production.
+      - key: ALLOW_PRIVATE_WEBHOOKS
+        value: "false"
+
+      # Optional: LLM provider for the adaptive attacker and the Judge. Without
+      # a key the platform still runs using deterministic fallbacks (runs are
+      # marked "inconclusive" rather than "secure"), so these are optional.
+      # Uncomment and set in the Render dashboard to enable live LLM runs.
+      # - key: LLM_PROVIDER
+      #   value: gemini
+      # - key: GEMINI_API_KEY
+      #   sync: false
+      # - key: OPENAI_API_KEY
+      #   sync: false
+
+      # Optional: separate key for encrypting stored target tokens at rest.
+      # Defaults to JWT_SECRET_KEY if unset. Changing it makes previously saved
+      # target tokens unreadable.
+      # - key: TARGET_ENCRYPTION_KEY
+      #   sync: false
