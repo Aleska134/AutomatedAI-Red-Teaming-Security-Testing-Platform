@@ -129,3 +129,42 @@ def get_scenarios(category: str | None = None) -> list[SecurityScenario]:
 def get_categories() -> list[str]:
     """Return display-friendly category names."""
     return sorted({scenario.category for scenario in SECURITY_SCENARIOS})
+
+
+def scenarios_for_target(scenarios: list["SecurityScenario"], *, has_target: bool):
+    """Keep scenarios runnable for the current target.
+
+    A saved external target can run every scenario; the built-in simulator can
+    only run scenarios whose ``execution_mode`` is ``simulator``.
+    """
+    if has_target:
+        return list(scenarios)
+    return [
+        scenario
+        for scenario in scenarios
+        if getattr(scenario, "execution_mode", "simulator") == "simulator"
+    ]
+
+
+def select_scenarios(
+    mode: str,
+    *,
+    has_target: bool,
+    category: str | None = None,
+    chosen_names: list[str] | None = None,
+) -> list["SecurityScenario"]:
+    """Resolve which scenarios to run for a given assessment mode.
+
+    - ``full``: every scenario available for the target.
+    - ``focused``: only the chosen category.
+    - ``pick``: only the scenarios whose ``name`` is in ``chosen_names``.
+    """
+    if mode == "focused":
+        available = scenarios_for_target(get_scenarios(category), has_target=has_target)
+    else:
+        available = scenarios_for_target(get_scenarios(), has_target=has_target)
+
+    if mode == "pick":
+        wanted = set(chosen_names or [])
+        return [scenario for scenario in available if scenario.name in wanted]
+    return available
