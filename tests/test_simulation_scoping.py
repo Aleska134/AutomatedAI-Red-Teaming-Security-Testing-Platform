@@ -72,3 +72,36 @@ def test_client_cannot_use_company_id_to_read_other_tenants(api_client, monkeypa
         "/api/v1/simulations/number/1", params={"company_id": b_id}, headers=_headers(a_token)
     )
     assert response.status_code == 404
+
+
+def test_failed_run_does_not_consume_a_simulation_number(api_client, monkeypatch):
+    """A run that fails (e.g. the target was asleep and timed out) must not
+    leave a gap in the per-company numbering: completed runs stay 1, 2, 3..."""
+    from app.services.webhook_adapter import WebhookAdapterError
+
+    _, token = register_active_company(api_client, "Shop", "gap@scope.test")
+    headers = _headers(token)
+
+    # First run succeeds -> should be #1.
+    _fake_agents(monkeypatch)
+    _run(api_client, headers)
+
+    # Second run fails mid-flight (simulate the target being unreachable).
+    def boom(history, strategy):
+        raise WebhookAdapterError("target asleep")
+
+    monkeypatch.setattr(f"{MODULE}.generate_attack_payload_result", boom)
+    _run(api_client, headers)
+
+    # Third run succeeds -> must be #2, NOT #3 (the failed run took no number).
+    _fake_agents(monkeypatch)
+    _run(api_client, headers)
+
+    data = api_client.get("/api/v1/simulations", headers=headers).json()["data"]
+    completed = [
+        r["simulation_number"]
+        for r in data
+        if r.get("status") == "completed"
+    ]
+    # Two completed runs, numbered consecutively with no gap.
+    assert sorted(completed) == [1, 2]
