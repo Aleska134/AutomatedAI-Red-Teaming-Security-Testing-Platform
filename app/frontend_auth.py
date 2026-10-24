@@ -9,6 +9,36 @@ import requests
 import streamlit as st
 
 
+def humanize_error(response, fallback: str = "Something went wrong.") -> str:
+    """Turn a FastAPI error response into a readable, user-facing message.
+
+    FastAPI returns ``detail`` as a plain string for HTTPExceptions, but as a
+    list of validation error objects (422) such as
+    ``[{"loc": ["body", "password"], "msg": "String should have at least 1
+    character", ...}]``. Rendering that raw is confusing, so we extract and
+    join the human-readable ``msg`` fields, labelled by field name.
+    """
+    try:
+        detail = response.json().get("detail")
+    except (ValueError, AttributeError):
+        return fallback
+    if isinstance(detail, str) and detail.strip():
+        return detail
+    if isinstance(detail, list):
+        messages = []
+        for item in detail:
+            if not isinstance(item, dict):
+                continue
+            msg = item.get("msg", "")
+            loc = item.get("loc") or []
+            # Last location part is usually the field name (e.g. "password").
+            field = str(loc[-1]) if loc else ""
+            messages.append(f"{field.capitalize()}: {msg}" if field else msg)
+        if messages:
+            return " · ".join(messages)
+    return fallback
+
+
 def _auth_headers() -> dict:
     token = st.session_state.get("access_token")
     return {"Authorization": f"Bearer {token}"} if token else {}
@@ -66,7 +96,7 @@ def _login_form(api_base_url: str) -> None:
             _store_session(response.json())
             st.rerun()
         else:
-            st.error(response.json().get("detail", "Sign in failed."))
+            st.error(humanize_error(response, "Sign in failed."))
 
 
 def _register_form(api_base_url: str) -> None:
@@ -98,7 +128,7 @@ def _register_form(api_base_url: str) -> None:
             st.success("Account created. Your company is pending activation.")
             st.rerun()
         else:
-            st.error(response.json().get("detail", "Registration failed."))
+            st.error(humanize_error(response, "Registration failed."))
 
 
 def _forgot_password_form(api_base_url: str) -> None:
@@ -140,7 +170,7 @@ def _forgot_password_form(api_base_url: str) -> None:
         if response.status_code == 200:
             st.success("Password reset. You can sign in now.")
         else:
-            st.error(response.json().get("detail", "Reset failed."))
+            st.error(humanize_error(response, "Reset failed."))
 
 
 def render_auth_gate(api_base_url: str) -> None:
@@ -183,7 +213,7 @@ def render_sidebar_profile(api_base_url: str) -> None:
                 if response.status_code == 200:
                     st.success("Password updated.")
                 else:
-                    st.error(response.json().get("detail", "Update failed."))
+                    st.error(humanize_error(response, "Update failed."))
 
         if st.button("Sign out", width="stretch"):
             logout()
@@ -230,4 +260,4 @@ def _set_status(api_base_url: str, company_id: str, status: str) -> None:
         st.success(f"Company set to {status}.")
         st.rerun()
     else:
-        st.error(response.json().get("detail", "Update failed."))
+        st.error(humanize_error(response, "Update failed."))

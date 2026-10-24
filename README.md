@@ -1,10 +1,25 @@
 # Automated AI Red Teaming & Security Testing Platform
 
 [![tests](https://github.com/Aleska134/AutomatedAI-Red-Teaming-Security-Testing-Platform/actions/workflows/tests.yml/badge.svg)](https://github.com/Aleska134/AutomatedAI-Red-Teaming-Security-Testing-Platform/actions/workflows/tests.yml)
+[![live demo](https://img.shields.io/badge/live%20demo-online-brightgreen)](https://automatedai-red-teaming-security-testing-platform.streamlit.app/)
 
 An e-commerce security testing platform for evaluating whether LLM-powered
 customer support agents can safely handle adversarial conversations and
 controlled business operations.
+
+**Live demo:** [dashboard](https://automatedai-red-teaming-security-testing-platform.streamlit.app/)
+(Streamlit Community Cloud) · [API](https://ai-red-teaming-api.onrender.com)
+(FastAPI on Render, docs at
+[`/docs`](https://ai-red-teaming-api.onrender.com/docs)) · database on Neon
+Postgres. Register a company, have an admin activate it, then add a chatbot
+target and run a simulation. See [Deploy (free tier)](#deploy-free-tier).
+
+> ⏳ **Heads-up (free tier):** the Render backend sleeps after ~15 minutes of
+> inactivity, so the first dashboard action after idle takes ~30–60 seconds
+> while it wakes; later actions are fast. Live LLM runs (adaptive attacker +
+> Judge) need an LLM API key configured on the backend — without one, the
+> platform still runs on deterministic rules and marks runs *inconclusive*
+> rather than *secure*.
 
 The project combines:
 
@@ -649,9 +664,12 @@ between validation and request. See
 
 ## Project status and roadmap
 
-Phases 1–3 are complete; Phase 4 (portfolio launch) is next. To continue
-development, start with [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): where things
-live, the one-PR-per-step workflow, local gotchas and the next step in detail.
+Phases 1–3 are complete and the platform is **deployed** (Phase 4, portfolio
+launch): the FastAPI backend runs on Render, the Streamlit dashboard on
+Streamlit Community Cloud, and the database on Neon Postgres — see
+[Deploy (free tier)](#deploy-free-tier). To continue development, start with
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): where things live, the
+one-PR-per-step workflow, local gotchas and the next step in detail.
 
 This repository is an evolving product prototype. The phased plan (security
 hardening → solid foundation → product differentiators → portfolio launch →
