@@ -26,6 +26,7 @@ from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
 from app.services.batch_runner import (  # noqa: E402
     can_combine_runs,
     collect_scenario_results,
+    target_display_name,
 )
 from app.services.merchant_reporting import (  # noqa: E402
     build_findings,
@@ -522,12 +523,13 @@ with tab2:
                 "report covering all of them."
             )
 
+            # Fetch targets here: this tab renders before the tab where the
+            # merchant view loads them, so we cannot rely on that variable.
+            saved_targets = fetch_targets()
+            target_names_by_id = {t["target_id"]: t["name"] for t in saved_targets}
+
             def _target_name(record):
-                tid = record.get("target_id")
-                if not tid:
-                    return "Built-in Defender (simulator)"
-                saved = next((t for t in targets if t["target_id"] == tid), None)
-                return saved["name"] if saved else tid
+                return target_display_name(record, target_names_by_id)
 
             chosen_ids = st.multiselect(
                 "Tests to include",

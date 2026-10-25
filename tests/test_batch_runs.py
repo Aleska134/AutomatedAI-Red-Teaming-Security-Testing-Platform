@@ -5,7 +5,11 @@ abort the remaining tests in the batch — every scenario runs independently and
 reports its own outcome.
 """
 
-from app.services.batch_runner import can_combine_runs, collect_scenario_results
+from app.services.batch_runner import (
+    can_combine_runs,
+    collect_scenario_results,
+    target_display_name,
+)
 
 
 class FakeScenario:
@@ -90,3 +94,19 @@ def test_builtin_simulator_runs_combine_together():
     runs = [{"target_id": None}, {"target_id": None}]
     ok, _ = can_combine_runs(runs)
     assert ok is True
+
+
+# --- target_display_name --------------------------------------------------- #
+
+
+def test_target_display_name_resolves_saved_name():
+    names = {"target-1": "Chatbot Weak"}
+    assert target_display_name({"target_id": "target-1"}, names) == "Chatbot Weak"
+
+
+def test_target_display_name_falls_back_to_id_when_unknown():
+    assert target_display_name({"target_id": "gone"}, {}) == "gone"
+
+
+def test_target_display_name_builtin_when_no_target():
+    assert "Built-in" in target_display_name({"target_id": None}, {})
