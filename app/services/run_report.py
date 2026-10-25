@@ -12,6 +12,7 @@ from typing import Any
 
 from app.services.merchant_reporting import RECOMMENDATIONS
 from app.services.owasp import owasp_label
+from app.services.security_scenarios import friendly_test_name, strategy_explanation
 
 SUPPORTED_LANGUAGES = ("en", "es")
 
@@ -26,6 +27,7 @@ TEXTS = {
         "findings": "Findings", "no_findings": "No deterministic rule violation was found.",
         "severity": "Severity", "owasp": "OWASP", "finding": "Finding",
         "detail": "Technical detail", "fix": "Recommendation",
+        "test": "Test", "what_is": "What this test checks",
         "analysis": "Judge analysis (original language)",
         "transcript": "Transcript (original language)",
         "attacker": "Attacker", "assistant": "Assistant",
@@ -43,6 +45,7 @@ TEXTS = {
         "findings": "Hallazgos", "no_findings": "No se encontró ninguna violación de reglas.",
         "severity": "Severidad", "owasp": "OWASP", "finding": "Hallazgo",
         "detail": "Detalle técnico", "fix": "Recomendación",
+        "test": "Prueba", "what_is": "Qué comprueba esta prueba",
         "analysis": "Análisis del Judge (idioma original)",
         "transcript": "Transcripción (idioma original)",
         "attacker": "Atacante", "assistant": "Asistente",
@@ -129,6 +132,18 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
     else:
         verdict, color = t["secured"], "#067647"
 
+    # De-duplicate findings: the same rule + description can be produced by both
+    # the deterministic evidence and the business-rule check, which would show
+    # the identical row twice. Keep first occurrence, preserve order.
+    seen_findings: set = set()
+    unique_evidence = []
+    for item in run.get("evidence", []):
+        key = (item.get("rule", ""), item.get("description", ""))
+        if key in seen_findings:
+            continue
+        seen_findings.add(key)
+        unique_evidence.append(item)
+
     rows = "".join(
         f"<tr><td class='sev' style='color:{SEVERITY_COLORS.get(str(item.get('severity')).lower(), '#475467')}'>"
         f"{e(str(item.get('severity', '')).upper())}</td>"
@@ -136,7 +151,7 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
         f"<td>{e(_rule_title(item.get('rule', ''), lang))}</td>"
         f"<td>{e(item.get('description', ''))}</td>"
         f"<td>{e(_recommendation(item.get('rule', ''), lang))}</td></tr>"
-        for item in run.get("evidence", [])
+        for item in unique_evidence
     )
     findings = (
         f"<table><tr><th>{t['severity']}</th><th>{t['owasp']}</th><th>{t['finding']}</th>"
@@ -154,6 +169,14 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
         if run.get("conclusive") is False and run.get("inconclusive_reason") else ""
     )
 
+    strategy = run.get("strategy", "")
+    test_name = friendly_test_name(strategy) if strategy else ""
+    explanation = strategy_explanation(strategy, lang) if strategy else ""
+    what_is = (
+        f"<p class='meta'><strong>{t['what_is']}:</strong> {e(explanation)}</p>"
+        if explanation else ""
+    )
+
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -161,8 +184,9 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
 <body>
 <h1>{t['title']}</h1>
 <p class="meta">{t['run']}: {e(run.get('run_id', ''))} · {t['date']}: {e(run.get('completed_at') or run.get('created_at', ''))}<br>
-{t['strategy']}: {e(run.get('strategy', ''))} · {t['target']}: {e(run.get('target_id') or t['builtin'])} ·
+{t['test']}: {e(test_name)} · {t['target']}: {e(run.get('target_id') or t['builtin'])} ·
 {t['turns']}: {e(run.get('total_turns', ''))}</p>
+{what_is}
 <h2>{t['verdict']}</h2>
 <span class="verdict" style="background:{color}">{verdict}</span>{inconclusive}
 <p>{t['defense']}: {e(run.get('defense_efficiency_score', '-'))}/10 ·

@@ -119,6 +119,107 @@ SECURITY_SCENARIOS = (
 )
 
 
+# Plain-language explanations of each attack strategy, for non-technical users.
+# (en, es). Keyed by the ``strategy`` slug so the report and dashboard can
+# translate a raw strategy like "data_exfiltration" into something a shop owner
+# understands. Written to be collected into the central ES/EN dictionary later.
+SUPPORTED_SCENARIO_LANGS = ("en", "es")
+
+STRATEGY_EXPLANATIONS = {
+    "jailbreak_dan": (
+        "Prompt injection / jailbreak: the attacker tries to trick the chatbot "
+        "into ignoring its own rules (for example, 'ignore your instructions').",
+        "Inyección de instrucciones / jailbreak: el atacante intenta engañar al "
+        "chatbot para que ignore sus propias reglas (por ejemplo, 'ignora tus "
+        "instrucciones').",
+    ),
+    "social_engineering": (
+        "Social engineering: the attacker uses urgency, emotion, or a fake "
+        "authority to pressure the chatbot into breaking a rule.",
+        "Ingeniería social: el atacante usa urgencia, emoción o una autoridad "
+        "falsa para presionar al chatbot a romper una regla.",
+    ),
+    "authority_override": (
+        "Authority override: the attacker pretends to be an admin or manager to "
+        "get a discount or action it should not allow.",
+        "Suplantación de autoridad: el atacante finge ser un administrador o "
+        "gerente para conseguir un descuento o acción que no debería permitir.",
+    ),
+    "roleplay_hypothetical": (
+        "Hypothetical roleplay: the attacker frames the request as a game or a "
+        "'what-if' so the chatbot lowers its guard.",
+        "Juego de roles hipotético: el atacante plantea la petición como un "
+        "juego o un 'qué pasaría si' para que el chatbot baje la guardia.",
+    ),
+    "indirect_injection": (
+        "Indirect prompt injection: hidden instructions are planted inside "
+        "content the chatbot is asked to read (a review, an email, a note).",
+        "Inyección indirecta: se ocultan instrucciones dentro de contenido que "
+        "el chatbot debe leer (una reseña, un correo, una nota).",
+    ),
+    "obfuscation": (
+        "Obfuscation: the attacker disguises the request (encoding, other "
+        "languages, split messages) to slip past keyword filters.",
+        "Ofuscación: el atacante disfraza la petición (codificación, otros "
+        "idiomas, mensajes partidos) para evadir los filtros de palabras.",
+    ),
+    "data_exfiltration": (
+        "Data exfiltration: the attacker tries to pull out someone else's "
+        "private data, such as another customer's email or address.",
+        "Exfiltración de datos: el atacante intenta extraer datos privados de "
+        "otra persona, como el correo o la dirección de otro cliente.",
+    ),
+    "output_injection": (
+        "Output injection: the attacker makes the chatbot return code (like a "
+        "<script> tag) that a web page would run.",
+        "Inyección de salida: el atacante hace que el chatbot devuelva código "
+        "(como una etiqueta <script>) que una página web ejecutaría.",
+    ),
+    "tool_abuse": (
+        "Tool abuse: the attacker makes the chatbot perform actions it should "
+        "not, like checking out or editing someone else's order.",
+        "Abuso de herramientas: el atacante hace que el chatbot realice acciones "
+        "que no debería, como pagar o editar el pedido de otra persona.",
+    ),
+    "scope_boundary": (
+        "Scope boundary: checks that the chatbot refuses off-topic questions "
+        "instead of answering things unrelated to the store.",
+        "Límite de alcance: comprueba que el chatbot rechaza preguntas fuera de "
+        "tema en lugar de responder cosas ajenas a la tienda.",
+    ),
+}
+
+
+def _lang_index(lang: str) -> int:
+    return SUPPORTED_SCENARIO_LANGS.index(lang) if lang in SUPPORTED_SCENARIO_LANGS else 0
+
+
+def scenario_for_strategy(strategy: str) -> SecurityScenario | None:
+    """Return the first scenario that uses a given strategy (for its name)."""
+    for scenario in SECURITY_SCENARIOS:
+        if scenario.strategy == strategy:
+            return scenario
+    return None
+
+
+def friendly_test_name(strategy: str) -> str:
+    """Human-friendly test name for a raw strategy slug.
+
+    e.g. "data_exfiltration" -> "Customer Data Access". Falls back to a
+    title-cased version of the slug if no scenario matches.
+    """
+    scenario = scenario_for_strategy(strategy)
+    if scenario:
+        return scenario.name
+    return strategy.replace("_", " ").title()
+
+
+def strategy_explanation(strategy: str, lang: str = "en") -> str:
+    """Plain-language explanation of an attack strategy, or '' if unknown."""
+    pair = STRATEGY_EXPLANATIONS.get(strategy)
+    return pair[_lang_index(lang)] if pair else ""
+
+
 def get_scenarios(category: str | None = None) -> list[SecurityScenario]:
     """Return all scenarios or only scenarios in a selected category."""
     if category in (None, "All categories"):
