@@ -23,7 +23,10 @@ from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
     render_auth_gate,
     render_sidebar_profile,
 )
-from app.services.batch_runner import collect_scenario_results  # noqa: E402
+from app.services.batch_runner import (  # noqa: E402
+    can_combine_runs,
+    collect_scenario_results,
+)
 from app.services.merchant_reporting import (  # noqa: E402
     build_findings,
     build_merchant_report,
@@ -506,6 +509,57 @@ with tab2:
             return f"#{number} · {test_name}{company}"
 
         records_by_id = {item["session_id"]: item for item in transcript_records}
+
+        # --- Build a combined report from saved runs ---------------------- #
+        # Lets the user re-create a combined report any time from runs already
+        # stored (so it is never lost after the next assessment). The runs must
+        # belong to the SAME target: mixing chatbots in one summary would make
+        # the counts meaningless. Comparing two chatbots is a separate, explicit
+        # feature.
+        with st.expander("📑 Build a combined report from saved tests"):
+            st.caption(
+                "Pick two or more tests of the **same chatbot** to download one "
+                "report covering all of them."
+            )
+
+            def _target_name(record):
+                tid = record.get("target_id")
+                if not tid:
+                    return "Built-in Defender (simulator)"
+                saved = next((t for t in targets if t["target_id"] == tid), None)
+                return saved["name"] if saved else tid
+
+            chosen_ids = st.multiselect(
+                "Tests to include",
+                options=list(df_logs["session_id"]),
+                format_func=lambda sid: (
+                    f"{_session_label(records_by_id[sid])} — {_target_name(records_by_id[sid])}"
+                ),
+                key="combined_pick",
+            )
+            chosen_runs = [records_by_id[sid] for sid in chosen_ids]
+            can_combine, reason = can_combine_runs(chosen_runs)
+            if not can_combine and len(chosen_runs) < 2:
+                st.info(reason)
+            elif not can_combine:
+                # Enforce same-chatbot rule, explicitly.
+                st.warning(
+                    reason + " Comparing two chatbots is a separate feature."
+                )
+            else:
+                picked_lang_col, picked_btn_col = st.columns([1, 2])
+                picked_lang = picked_lang_col.selectbox(
+                    "Report language",
+                    options=["en", "es"],
+                    format_func={"en": "English", "es": "Español"}.get,
+                    key="picked_combined_lang",
+                )
+                picked_btn_col.download_button(
+                    f"⬇️ Download combined report ({len(chosen_runs)} tests)",
+                    data=render_combined_report(chosen_runs, picked_lang),
+                    file_name=f"assessment-report-{picked_lang}.html",
+                    mime="text/html",
+                )
         selected_session_id = st.selectbox(
             "Select a security log to inspect:",
             options=list(df_logs["session_id"]),
