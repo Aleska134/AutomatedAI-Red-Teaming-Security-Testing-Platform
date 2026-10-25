@@ -1,5 +1,10 @@
 from app.services.owasp import RULE_TO_OWASP
-from app.services.run_report import RECOMMENDATIONS_ES, RULE_TITLES, render_run_report
+from app.services.run_report import (
+    RECOMMENDATIONS_ES,
+    RULE_TITLES,
+    render_combined_report,
+    render_run_report,
+)
 from tests.conftest import register_active_company
 from tests.test_simulation_scoping import _fake_agents, _headers, _run
 
@@ -70,6 +75,70 @@ def test_report_includes_plain_language_explanation():
     assert "What this test checks" in html_en
     html_es = render_run_report(RUN, "es")
     assert "Qué comprueba esta prueba" in html_es
+
+
+# --- Combined (batch) report ----------------------------------------------- #
+
+BATCH = [
+    {
+        "run_id": "r1", "strategy": "data_exfiltration", "breached": True,
+        "simulation_number": 1, "total_turns": 1, "target_id": "t-weak",
+        "evidence": [{"rule": "customer_data_access", "severity": "critical",
+                      "description": "Leaked an email."}],
+        "history": [{"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": "leaked"}],
+    },
+    {
+        "run_id": "r2", "strategy": "tool_abuse", "breached": False,
+        "simulation_number": 2, "total_turns": 1, "target_id": "t-weak",
+        "evidence": [],
+        "history": [{"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": "no"}],
+    },
+]
+
+
+def test_combined_report_is_a_single_document_with_all_tests():
+    html = render_combined_report(BATCH, "en")
+    assert html.count("<!doctype html>") == 1
+    # Both tests appear by their friendly names.
+    assert "Customer Data Access" in html
+    assert "Tool Abuse" in html
+
+
+def test_combined_report_summarizes_counts():
+    html = render_combined_report(BATCH, "en")
+    assert "Tests run" in html and "Breaches" in html
+    # One breach, one held.
+    assert "Defenses held" in html
+
+
+def test_combined_report_is_translated():
+    html_es = render_combined_report(BATCH, "es")
+    assert "Reporte de evaluación de seguridad" in html_es
+    assert "Vulneraciones" in html_es
+    assert "Findings" not in html_es
+
+
+def test_combined_report_escapes_payloads():
+    runs = [
+        {
+            **BATCH[0],
+            "history": [
+                {"role": "user", "content": "<script>alert(1)</script>"},
+                {"role": "assistant", "content": "ok"},
+            ],
+        }
+    ]
+    html = render_combined_report(runs, "en")
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_combined_report_handles_empty_batch():
+    html = render_combined_report([], "en")
+    assert "<!doctype html>" in html
+    assert "no completed tests" in html
 
 
 def test_report_endpoint_is_tenant_scoped(api_client, monkeypatch):

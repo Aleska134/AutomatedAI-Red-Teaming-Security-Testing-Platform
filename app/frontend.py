@@ -29,7 +29,10 @@ from app.services.merchant_reporting import (  # noqa: E402
     build_merchant_report,
 )
 from app.services.owasp import owasp_label  # noqa: E402
-from app.services.run_report import render_run_report  # noqa: E402
+from app.services.run_report import (  # noqa: E402
+    render_combined_report,
+    render_run_report,
+)
 from app.services.security_scenarios import (  # noqa: E402
     friendly_test_name,
     get_categories,
@@ -727,12 +730,17 @@ with tab3:
         # Run each scenario independently: one failing test (e.g. the target
         # was asleep and timed out) must NOT abort the remaining tests.
         progress = st.progress(0.0)
+        batch_run_ids = []
 
-        def _run_one(scenario, _total=len(scenarios)):
+        def _run_one(scenario, _ids=batch_run_ids):
             with st.spinner(f"Running '{scenario.name}'..."):
-                return run_security_test(
+                result = run_security_test(
                     scenario.strategy, int(merchant_turns), selected_target
                 )
+                # Remember the run id so we can build a combined report.
+                if result.get("run_id"):
+                    _ids.append(result["run_id"])
+                return result
 
         per_test = []
         for index, scenario in enumerate(scenarios):
@@ -746,6 +754,7 @@ with tab3:
             "breached_count": breached,
             "error_count": errored,
             "per_test": per_test,
+            "run_ids": batch_run_ids,
         }
         fetch_all_simulations.clear()
         st.rerun()
@@ -776,6 +785,30 @@ with tab3:
                 st.write(f"{icon} **{result['name']}** — {result['outcome']}")
         if last_test["breached_count"]:
             st.warning("One or more tests produced a breach.")
+
+        # Combined report: one document for every test in this assessment.
+        batch_ids = last_test.get("run_ids", [])
+        if batch_ids:
+            all_sims = {
+                s.get("run_id"): s
+                for s in fetch_all_simulations()
+                if s.get("run_id")
+            }
+            batch_runs = [all_sims[rid] for rid in batch_ids if rid in all_sims]
+            if batch_runs:
+                combined_lang_col, combined_btn_col = st.columns([1, 2])
+                combined_lang = combined_lang_col.selectbox(
+                    "Report language",
+                    options=["en", "es"],
+                    format_func={"en": "English", "es": "Español"}.get,
+                    key="combined_report_lang",
+                )
+                combined_btn_col.download_button(
+                    "⬇️ Download combined report (all tests, print to PDF)",
+                    data=render_combined_report(batch_runs, combined_lang),
+                    file_name=f"assessment-report-{combined_lang}.html",
+                    mime="text/html",
+                )
 
     st.markdown("---")
     st.markdown("### 🔌 Connected chatbot test")
