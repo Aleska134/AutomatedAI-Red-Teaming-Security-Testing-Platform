@@ -37,6 +37,41 @@ def test_unknown_language_falls_back_to_english():
     assert "Findings" in render_run_report(RUN, "fr")
 
 
+def test_duplicate_findings_are_shown_once():
+    """The same rule+description can come from both deterministic and business
+    checks; the report must not print the identical finding row twice."""
+    run = {
+        **RUN,
+        "evidence": [
+            {"rule": "discount_limit", "severity": "high",
+             "description": "Assistant output mentioned a 50% discount, above the 10% limit."},
+            {"rule": "discount_limit", "severity": "high",
+             "description": "Assistant output mentioned a 50% discount, above the 10% limit."},
+            {"rule": "discount_limit", "severity": "high",
+             "description": "A different detail about the discount."},
+        ],
+    }
+    html = render_run_report(run, "en")
+    # The duplicated description appears once; the distinct one also appears.
+    assert html.count("Assistant output mentioned a 50% discount, above the 10% limit.") == 1
+    assert "A different detail about the discount." in html
+
+
+def test_report_shows_friendly_test_name_not_raw_strategy():
+    # output_injection -> "Unsafe Output (XSS)"; the raw slug should not appear
+    # as the test label.
+    html = render_run_report(RUN, "en")
+    assert "Unsafe Output (XSS)" in html
+    assert "Test: output_injection" not in html
+
+
+def test_report_includes_plain_language_explanation():
+    html_en = render_run_report(RUN, "en")
+    assert "What this test checks" in html_en
+    html_es = render_run_report(RUN, "es")
+    assert "Qué comprueba esta prueba" in html_es
+
+
 def test_report_endpoint_is_tenant_scoped(api_client, monkeypatch):
     _fake_agents(monkeypatch)
     _, a_token = register_active_company(api_client, "Shop A", "a@report.test")

@@ -31,10 +31,12 @@ from app.services.merchant_reporting import (  # noqa: E402
 from app.services.owasp import owasp_label  # noqa: E402
 from app.services.run_report import render_run_report  # noqa: E402
 from app.services.security_scenarios import (  # noqa: E402
+    friendly_test_name,
     get_categories,
     get_scenarios,
     scenarios_for_target,
     select_scenarios,
+    strategy_explanation,
 )
 
 # Configure the core Streamlit page parameters
@@ -491,12 +493,14 @@ with tab2:
             by="simulation_number", ascending=False
         )
 
-        # Numbers restart per company (admins see several "#1"), so select by
-        # the unique session ID and show the owning company when available.
+        # Numbers restart per company (admins see several "#1"), so the label
+        # leads with the friendly test name so the user can tell runs apart at
+        # a glance, and the company (for admins) disambiguates.
         def _session_label(record):
             company = f" · {record['company_name']}" if record.get("company_name") else ""
             number = int(float(record["simulation_number"]))
-            return f"Simulation #{number}{company} (ID: {record['session_id']})"
+            test_name = friendly_test_name(record.get("strategy", "")) or "Test"
+            return f"#{number} · {test_name}{company}"
 
         records_by_id = {item["session_id"]: item for item in transcript_records}
         selected_session_id = st.selectbox(
@@ -508,7 +512,14 @@ with tab2:
         selected_sim_num = int(float(selected_record["simulation_number"]))
 
         # Render Audit Report metadata block
-        st.markdown(f"#### 🧑‍⚖️ Auditor Report Summary for Simulation #{selected_sim_num}")
+        selected_strategy = selected_record.get("strategy", "")
+        selected_test_name = friendly_test_name(selected_strategy) or "Test"
+        st.markdown(
+            f"#### 🧑‍⚖️ Auditor Report Summary — #{selected_sim_num}: {selected_test_name}"
+        )
+        selected_explanation = strategy_explanation(selected_strategy)
+        if selected_explanation:
+            st.caption(f"ℹ️ {selected_explanation}")
         c_a, c_b, c_c = st.columns(3)
         if selected_record.get("breached"):
             status_color = "🔴 BREACHED"
