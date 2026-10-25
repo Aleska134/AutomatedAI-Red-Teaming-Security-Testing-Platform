@@ -28,6 +28,10 @@ TEXTS = {
         "severity": "Severity", "owasp": "OWASP", "finding": "Finding",
         "detail": "Technical detail", "fix": "Recommendation",
         "test": "Test", "what_is": "What this test checks",
+        "combined_title": "Security assessment report",
+        "summary": "Summary", "tests_run": "Tests run", "breaches": "Breaches",
+        "held": "Defenses held", "inconclusive_n": "Inconclusive",
+        "result": "Result", "no_runs": "This assessment had no completed tests.",
         "analysis": "Judge analysis (original language)",
         "transcript": "Transcript (original language)",
         "attacker": "Attacker", "assistant": "Assistant",
@@ -46,6 +50,10 @@ TEXTS = {
         "severity": "Severidad", "owasp": "OWASP", "finding": "Hallazgo",
         "detail": "Detalle técnico", "fix": "Recomendación",
         "test": "Prueba", "what_is": "Qué comprueba esta prueba",
+        "combined_title": "Reporte de evaluación de seguridad",
+        "summary": "Resumen", "tests_run": "Pruebas realizadas", "breaches": "Vulneraciones",
+        "held": "Defensas que resistieron", "inconclusive_n": "No concluyentes",
+        "result": "Resultado", "no_runs": "Esta evaluación no tuvo pruebas completadas.",
         "analysis": "Análisis del Judge (idioma original)",
         "transcript": "Transcripción (idioma original)",
         "attacker": "Atacante", "assistant": "Asistente",
@@ -125,23 +133,46 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
     t = TEXTS[lang]
     e = lambda value: escape(str(value))  # noqa: E731
 
-    if run.get("breached"):
-        verdict, color = t["breached"], "#b42318"
-    elif run.get("conclusive") is False:
-        verdict, color = t["inconclusive"], "#667085"
-    else:
-        verdict, color = t["secured"], "#067647"
+    body = _run_body(run, lang, heading_level=2)
 
-    # De-duplicate findings: the same rule + description can be produced by both
-    # the deterministic evidence and the business-rule check, which would show
-    # the identical row twice. Keep first occurrence, preserve order.
-    seen_findings: set = set()
+    return f"""<!doctype html>
+<html lang="{lang}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{t['title']} · {e(run.get('run_id', ''))}</title><style>{_CSS}</style></head>
+<body>
+<h1>{t['title']}</h1>
+{body}
+<footer>{t['footer']}</footer>
+</body></html>"""
+
+
+def _verdict_label_color(run: dict[str, Any], t: dict) -> tuple[str, str]:
+    if run.get("breached"):
+        return t["breached"], "#b42318"
+    if run.get("conclusive") is False:
+        return t["inconclusive"], "#667085"
+    return t["secured"], "#067647"
+
+
+def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
+    """Render one run's section (meta, verdict, findings, transcript).
+
+    Shared by the single-run report and the combined report so both stay
+    consistent. ``heading_level`` lets the combined report nest runs under h3.
+    """
+    t = TEXTS[lang]
+    e = lambda value: escape(str(value))  # noqa: E731
+    h = f"h{heading_level}"
+    verdict, color = _verdict_label_color(run, t)
+
+    # De-duplicate findings (same rule+description can come from two checks).
+    seen: set = set()
     unique_evidence = []
     for item in run.get("evidence", []):
         key = (item.get("rule", ""), item.get("description", ""))
-        if key in seen_findings:
+        if key in seen:
             continue
-        seen_findings.add(key)
+        seen.add(key)
         unique_evidence.append(item)
 
     rows = "".join(
@@ -177,22 +208,75 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
         if explanation else ""
     )
 
-    return f"""<!doctype html>
-<html lang="{lang}"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{t['title']} · {e(run.get('run_id', ''))}</title><style>{_CSS}</style></head>
-<body>
-<h1>{t['title']}</h1>
-<p class="meta">{t['run']}: {e(run.get('run_id', ''))} · {t['date']}: {e(run.get('completed_at') or run.get('created_at', ''))}<br>
+    return f"""<p class="meta">{t['run']}: {e(run.get('run_id', ''))} · {t['date']}: {e(run.get('completed_at') or run.get('created_at', ''))}<br>
 {t['test']}: {e(test_name)} · {t['target']}: {e(run.get('target_id') or t['builtin'])} ·
 {t['turns']}: {e(run.get('total_turns', ''))}</p>
 {what_is}
-<h2>{t['verdict']}</h2>
+<{h}>{t['verdict']}</{h}>
 <span class="verdict" style="background:{color}">{verdict}</span>{inconclusive}
 <p>{t['defense']}: {e(run.get('defense_efficiency_score', '-'))}/10 ·
 {t['aggression']}: {e(run.get('attacker_aggression_level', '-'))}/5</p>
-<h2>{t['findings']}</h2>{findings}
-<h2>{t['analysis']}</h2><p>{e(run.get('analysis', ''))}</p>
-<h2>{t['transcript']}</h2>{transcript}
+<{h}>{t['findings']}</{h}>{findings}
+<{h}>{t['analysis']}</{h}><p>{e(run.get('analysis', ''))}</p>
+<{h}>{t['transcript']}</{h}>{transcript}"""
+
+
+def render_combined_report(runs: list[dict[str, Any]], lang: str = "en") -> str:
+    """Return one HTML report summarizing a batch of runs.
+
+    Lists an executive summary (how many tests, breaches, held, inconclusive)
+    and then each run's full section, so a user who ran several tests gets a
+    single document instead of one file per test.
+    """
+    lang = lang if lang in SUPPORTED_LANGUAGES else "en"
+    t = TEXTS[lang]
+    e = lambda value: escape(str(value))  # noqa: E731
+
+    total = len(runs)
+    breaches = sum(1 for r in runs if r.get("breached"))
+    inconclusive = sum(
+        1 for r in runs if not r.get("breached") and r.get("conclusive") is False
+    )
+    held = total - breaches - inconclusive
+
+    summary = (
+        f"<p class='meta'>{t['tests_run']}: <strong>{total}</strong> · "
+        f"{t['breaches']}: <strong>{breaches}</strong> · "
+        f"{t['held']}: <strong>{held}</strong> · "
+        f"{t['inconclusive_n']}: <strong>{inconclusive}</strong></p>"
+    )
+
+    # Overview table: one row per test with its result.
+    overview_rows = ""
+    for run in runs:
+        verdict, color = _verdict_label_color(run, t)
+        name = friendly_test_name(run.get("strategy", "")) or t["test"]
+        overview_rows += (
+            f"<tr><td>{e(name)}</td>"
+            f"<td style='color:{color};font-weight:700'>{e(verdict)}</td>"
+            f"<td>{e(run.get('target_id') or t['builtin'])}</td></tr>"
+        )
+    overview = (
+        f"<table><tr><th>{t['test']}</th><th>{t['result']}</th><th>{t['target']}</th></tr>"
+        f"{overview_rows}</table>"
+        if runs else f"<p>{t['no_runs']}</p>"
+    )
+
+    sections = "".join(
+        f"<hr><h2>{e(friendly_test_name(run.get('strategy', '')) or t['test'])} "
+        f"— #{e(run.get('simulation_number', ''))}</h2>{_run_body(run, lang, heading_level=3)}"
+        for run in runs
+    )
+
+    return f"""<!doctype html>
+<html lang="{lang}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{t['combined_title']}</title><style>{_CSS}</style></head>
+<body>
+<h1>{t['combined_title']}</h1>
+<h2>{t['summary']}</h2>
+{summary}
+{overview}
+{sections}
 <footer>{t['footer']}</footer>
 </body></html>"""
