@@ -8,6 +8,23 @@ this module just guarantees that one failing scenario never aborts the rest.
 from typing import Any, Callable
 
 
+def target_display_name(
+    run: dict[str, Any],
+    names_by_id: dict[str, str],
+    *,
+    builtin_label: str = "Built-in Defender (simulator)",
+) -> str:
+    """Human name of the chatbot a run targeted.
+
+    Falls back to the raw target id if the target is no longer saved, and to a
+    built-in-defender label when the run had no external target.
+    """
+    tid = run.get("target_id")
+    if not tid:
+        return builtin_label
+    return names_by_id.get(tid, tid)
+
+
 def can_combine_runs(runs: list[dict[str, Any]]) -> tuple[bool, str]:
     """Decide whether a set of runs may be merged into one combined report.
 
