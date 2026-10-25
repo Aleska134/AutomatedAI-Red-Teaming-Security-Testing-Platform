@@ -5,7 +5,7 @@ abort the remaining tests in the batch — every scenario runs independently and
 reports its own outcome.
 """
 
-from app.services.batch_runner import collect_scenario_results
+from app.services.batch_runner import can_combine_runs, collect_scenario_results
 
 
 class FakeScenario:
@@ -60,3 +60,33 @@ def test_every_scenario_can_fail_independently():
 
 def test_empty_batch_returns_empty():
     assert collect_scenario_results([], lambda s: {}) == []
+
+
+# --- can_combine_runs: combined report must cover a single chatbot --------- #
+
+
+def test_can_combine_same_target_runs():
+    runs = [{"target_id": "t-weak"}, {"target_id": "t-weak"}]
+    ok, reason = can_combine_runs(runs)
+    assert ok is True
+    assert reason == ""
+
+
+def test_cannot_combine_fewer_than_two():
+    ok, reason = can_combine_runs([{"target_id": "t-weak"}])
+    assert ok is False
+    assert "at least two" in reason
+
+
+def test_cannot_combine_different_targets():
+    runs = [{"target_id": "t-weak"}, {"target_id": "t-hardened"}]
+    ok, reason = can_combine_runs(runs)
+    assert ok is False
+    assert "different chatbots" in reason
+
+
+def test_builtin_simulator_runs_combine_together():
+    # Two runs against the built-in simulator (no target_id) share target None.
+    runs = [{"target_id": None}, {"target_id": None}]
+    ok, _ = can_combine_runs(runs)
+    assert ok is True

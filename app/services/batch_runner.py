@@ -8,6 +8,24 @@ this module just guarantees that one failing scenario never aborts the rest.
 from typing import Any, Callable
 
 
+def can_combine_runs(runs: list[dict[str, Any]]) -> tuple[bool, str]:
+    """Decide whether a set of runs may be merged into one combined report.
+
+    A combined report must cover a single chatbot (target); mixing targets would
+    make the summary counts meaningless. Comparing two chatbots is a separate,
+    explicit feature. Returns ``(ok, reason)`` where ``reason`` is '' when ok.
+    """
+    if len(runs) < 2:
+        return False, "Select at least two tests to build a combined report."
+    targets = {run.get("target_id") for run in runs}
+    if len(targets) > 1:
+        return False, (
+            "The selected tests belong to different chatbots. A combined report "
+            "must cover a single chatbot so its counts stay meaningful."
+        )
+    return True, ""
+
+
 def collect_scenario_results(
     scenarios: list[Any],
     runner: Callable[[Any], dict],
