@@ -64,6 +64,30 @@ escalate suspicious interactions to human support.
 - Scope-boundary testing to detect assistants that answer unrelated questions
   instead of redirecting users to supported store topics.
 
+### Merchant workflow (dashboard)
+
+The Streamlit dashboard lets a company manage and run its assessments end to
+end:
+
+- **Manage targets:** register, **edit** (name, URL, bearer token, and business
+  rules such as valid coupons, discount limit, forbidden actions, and protected
+  canaries), and **delete** saved chatbot targets — all scoped to the company.
+- **Three assessment modes:** run the full suite, focus on one risk category, or
+  **pick the specific tests** to run this round. Each selected test is one run,
+  with a token-cost note before launching several at once.
+- **Resilient batches:** tests run independently, so one failing test (for
+  example a target that is asleep and times out) never aborts the rest; each
+  test reports its own result.
+- **Reports in plain language:** every finding carries an OWASP category, a
+  friendly test name, a one-line explanation of the attack, de-duplicated
+  findings, and a recommended fix. Validation errors are shown as readable
+  messages, not raw API payloads.
+- **Combined report:** download one report covering several tests of the **same
+  chatbot** (mixing chatbots in a single summary is intentionally blocked, since
+  it would make the counts meaningless). Available right after a batch and
+  rebuildable any time from saved runs.
+- **Downloadable per-run and combined reports** in English or Spanish.
+
 ### Commerce simulator
 
 The simulated store is **TechMart** and currently enforces:
@@ -216,6 +240,8 @@ includes the company id and role.
 | `POST` | `/api/v1/admin/companies/{id}/status` | Activate/suspend a company (admin only) |
 | `POST` | `/api/v1/targets` | Register a reusable chatbot target |
 | `GET` | `/api/v1/targets` | List this company's targets |
+| `PATCH` | `/api/v1/targets/{id}` | Update a saved target (name, URL, token, business rules) |
+| `DELETE` | `/api/v1/targets/{id}` | Delete a saved target |
 | `POST` | `/api/v1/targets/{id}/test` | Run the scope-boundary probe against a saved target |
 
 Password reset: `/auth/forgot-password` always returns the same generic
@@ -620,11 +646,18 @@ local data is never touched:
 python -m pytest
 ```
 
-The suite currently covers catalog search, cart and checkout behavior,
-inventory updates, confirmation enforcement, tool allowlisting, basic
-prompt-injection signatures, authentication and tenant isolation, per-company
-simulation numbering, background simulation runs, auth rate limiting, SSRF
-blocking, secret storage, and inconclusive-run reporting.
+The suite covers catalog search, cart and checkout behavior, inventory updates,
+confirmation enforcement, tool allowlisting, basic prompt-injection signatures,
+authentication and tenant isolation, per-company simulation numbering
+(including that failed runs leave no gap and concurrent runs never collide on a
+number), background simulation runs, auth rate limiting, SSRF blocking, secret
+storage, and inconclusive-run reporting. It also covers the merchant-facing
+features: creating, editing, and deleting targets (tenant-scoped); the
+assessment modes (full, focused, and picking specific tests); running a batch
+of tests resiliently so one failure does not abort the rest; building a
+combined report from runs of a single chatbot; and the report/dashboard
+clarity helpers (friendly test names, plain-language explanations, de-duplicated
+findings, and user-readable error messages).
 
 ### Linting and dependencies
 
