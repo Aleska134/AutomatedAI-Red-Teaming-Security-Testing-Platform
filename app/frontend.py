@@ -37,6 +37,7 @@ from app.services.merchant_reporting import (  # noqa: E402
 )
 from app.services.owasp import owasp_label  # noqa: E402
 from app.services.run_report import (  # noqa: E402
+    RULE_TITLES,
     render_combined_report,
     render_run_report,
 )
@@ -116,6 +117,28 @@ def render_test_run_history(simulations):
 
 
 SEVERITY_COLORS = {"CRITICAL": "#b42318", "HIGH": "#ef6820", "MEDIUM": "#f79009", "LOW": "#98a2b3"}
+
+
+SEVERITY_ICONS = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "⚪"}
+
+
+def render_finding_card(finding):
+    """One finding as a readable card: what happened, then how to fix it."""
+    severity = str(finding["severity"]).lower()
+    title = RULE_TITLES.get(finding["rule"], (finding["rule"],))[0]
+    with st.container(border=True):
+        st.markdown(
+            f"#### {SEVERITY_ICONS.get(severity, '⚪')} {title} "
+            f"· {severity.upper()}"
+        )
+        seen = ", ".join(f"#{n}" for n in finding["simulations"])
+        times = "time" if finding["count"] == 1 else "times"
+        st.caption(
+            f"{finding['owasp']} · found {finding['count']} {times} "
+            f"(simulation {seen})"
+        )
+        st.markdown(f"**What happened**\n\n{finding['description']}")
+        st.success(f"**How to fix it**\n\n{finding['recommendation']}")
 
 
 def style_chart(fig, height=280):
@@ -949,22 +972,8 @@ with tab3:
     if not findings:
         st.success("No findings are available for review.")
     else:
-        st.dataframe(
-            [
-                {
-                    "Seen in": ", ".join(f"#{n}" for n in finding["simulations"]),
-                    "Times": finding["count"],
-                    "Severity": finding["severity"].upper(),
-                    "Rule": finding["rule"],
-                    "OWASP": finding["owasp"],
-                    "Description": finding["description"],
-                    "Recommendation": finding["recommendation"],
-                }
-                for finding in findings
-            ],
-            width="stretch",
-            hide_index=True,
-        )
+        for finding in findings:
+            render_finding_card(finding)
 
         st.markdown("#### Findings by OWASP category")
         by_category = (
