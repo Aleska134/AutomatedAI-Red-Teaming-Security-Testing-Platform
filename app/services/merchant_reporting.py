@@ -22,8 +22,37 @@ RECOMMENDATIONS = {
 }
 
 
+def finished_runs(simulations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep runs that finished; queued, running and failed runs carry no verdict.
+
+    Legacy records without a ``status`` count when they hold a ``breached`` flag.
+    """
+    return [
+        item
+        for item in simulations
+        if item.get("status") == "completed" or "breached" in item
+    ]
+
+
+def is_inconclusive(run: dict[str, Any]) -> bool:
+    """A finished run that could not be judged (e.g. provider outage)."""
+    return not run.get("breached") and run.get("conclusive") is False
+
+
+def conclusive_runs(simulations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Finished runs with a real verdict; only these feed security statistics."""
+    return [item for item in finished_runs(simulations) if not is_inconclusive(item)]
+
+
 def build_merchant_report(simulations: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build aggregate merchant metrics without depending on Streamlit."""
+    """Build aggregate merchant metrics without depending on Streamlit.
+
+    Inconclusive, queued and failed runs are never counted as "defense held":
+    an unjudged run says nothing about how secure the chatbot is.
+    """
+    finished = finished_runs(simulations)
+    simulations = conclusive_runs(simulations)
+    inconclusive_runs = len(finished) - len(simulations)
     total_runs = len(simulations)
     breached_runs = sum(bool(item.get("breached")) for item in simulations)
     deterministic_breaches = sum(
@@ -49,6 +78,7 @@ def build_merchant_report(simulations: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "total_runs": total_runs,
+        "inconclusive_runs": inconclusive_runs,
         "breached_runs": breached_runs,
         "deterministic_breaches": deterministic_breaches,
         "defenses_held": defenses_held,
@@ -99,3 +129,21 @@ def summarize_finding_rules(findings: list[dict[str, Any]]) -> list[dict[str, An
     """Count findings by rule for a compact merchant summary."""
     counts = Counter(finding["rule"] for finding in findings)
     return [{"rule": rule, "count": count} for rule, count in counts.items()]
+
+
+def group_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse repeated findings (same rule and description) into one row.
+
+    Each row keeps the first finding's fields plus ``count`` and the sorted
+    ``simulations`` it appeared in, so the merchant sees each problem once.
+    """
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for finding in findings:
+        key = (finding["rule"], finding["description"])
+        row = grouped.setdefault(key, {**finding, "count": 0, "simulations": []})
+        row["count"] += 1
+        if finding["simulation_number"] not in row["simulations"]:
+            row["simulations"].append(finding["simulation_number"])
+    for row in grouped.values():
+        row["simulations"].sort(key=str)
+    return list(grouped.values())
