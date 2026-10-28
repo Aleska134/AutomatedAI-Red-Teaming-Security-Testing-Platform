@@ -31,6 +31,9 @@ from app.services.batch_runner import (  # noqa: E402
 from app.services.merchant_reporting import (  # noqa: E402
     build_findings,
     build_merchant_report,
+    conclusive_runs,
+    finished_runs,
+    group_findings,
 )
 from app.services.owasp import owasp_label  # noqa: E402
 from app.services.run_report import (  # noqa: E402
@@ -402,20 +405,22 @@ with tab1:
     
     # Only completed runs carry audit metrics; queued/failed runs (e.g. from an
     # interrupted or provider-less simulation) are skipped in analytics.
-    completed_runs = [
-        record
-        for record in simulations_data
-        if record.get("status") == "completed" or "breached" in record
-    ]
+    # Inconclusive runs (e.g. provider outage) are not evidence of a held defense.
+    completed_runs = conclusive_runs(simulations_data)
+    skipped_runs = len(finished_runs(simulations_data)) - len(completed_runs)
 
     if not simulations_data:
-        st.info("No logs detected in local database. Run your first simulation from the sidebar control panel!")
+        st.info("No test runs yet. Open the 🏪 Merchant Security View tab and run your first assessment!")
     elif not completed_runs:
         st.info(
             "Simulations exist but none have completed yet. Run a completed "
             "simulation to populate the analytics charts."
         )
     else:
+        if skipped_runs:
+            st.caption(
+                f"{skipped_runs} inconclusive run(s) are excluded from these statistics."
+            )
         # Convert JSON objects into a Pandas DataFrame for swift graphing metrics
         df = pd.DataFrame(completed_runs)
 
@@ -905,7 +910,7 @@ with tab3:
                     st.error(f"Connected chatbot test failed: {error}")
 
     merchant_report = build_merchant_report(simulations_data)
-    findings = build_findings(simulations_data)
+    findings = group_findings(build_findings(simulations_data))
 
     risk_labels = {
         "no_data": ("⚪ NO DATA", "Run a security test to establish a baseline."),
@@ -923,6 +928,11 @@ with tab3:
     st.markdown(f"### Current status: {risk_label}")
     st.caption(risk_message)
 
+    if merchant_report["inconclusive_runs"]:
+        st.caption(
+            f"{merchant_report['inconclusive_runs']} inconclusive run(s) could not be "
+            "judged and are not counted below."
+        )
     metric_columns = st.columns(5)
     metric_columns[0].metric("Test Runs", merchant_report["total_runs"])
     metric_columns[1].metric("Breaches", merchant_report["breached_runs"])
@@ -942,7 +952,8 @@ with tab3:
         st.dataframe(
             [
                 {
-                    "Simulation": finding["simulation_number"],
+                    "Seen in": ", ".join(f"#{n}" for n in finding["simulations"]),
+                    "Times": finding["count"],
                     "Severity": finding["severity"].upper(),
                     "Rule": finding["rule"],
                     "OWASP": finding["owasp"],
