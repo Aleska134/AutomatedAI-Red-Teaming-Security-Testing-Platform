@@ -27,7 +27,7 @@ def delete_target_request(target_id: str):
     return api_delete(API_BASE_URL, f"/targets/{target_id}", timeout=30)
 
 
-def _render_target_fields_help():
+def render_target_fields_help():
     """Plain-language help for the target fields, for non-technical users."""
     with st.expander("❓ How do I fill this in?"):
         st.markdown(
@@ -109,7 +109,7 @@ def _render_edit_target_form(target):
     """Inline form to edit an existing target, pre-filled with its values."""
     tid = target["target_id"]
     rules = target.get("business_rules") or {}
-    _render_target_fields_help()
+    render_target_fields_help()
     with st.form(f"edit_target_{tid}"):
         name = st.text_input("Name", value=target["name"], key=f"{tid}-name")
         url = st.text_input("Webhook URL", value=target["webhook_url"], key=f"{tid}-url")
@@ -154,7 +154,7 @@ def _render_edit_target_form(target):
 def render_target_form():
     """Register an external chatbot (webhook) with its business rules."""
     with st.expander("➕ Register a chatbot target"):
-        _render_target_fields_help()
+        render_target_fields_help()
         with st.form("create_target", clear_on_submit=True):
             name = st.text_input("Name", placeholder="TechMart weak")
             url = st.text_input(

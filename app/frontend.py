@@ -14,7 +14,7 @@ from app.frontend_auth import (  # noqa: E402 - needs sys.path tweak above
     render_auth_gate,
     render_sidebar_profile,
 )
-from app.ui import analytics, logs, merchant  # noqa: E402
+from app.ui import guide, home, my_chatbots, nav, results, run_tests  # noqa: E402
 from app.ui.common import API_BASE_URL, fetch_all_simulations  # noqa: E402
 
 # Configure the core Streamlit page parameters
@@ -36,41 +36,32 @@ st.markdown("---")
 
 simulations_data = fetch_all_simulations(st.session_state.get("access_token", ""))
 
+
+def _page(module):
+    """Wrap a page module's ``render`` as the zero-argument callable Streamlit wants."""
+
+    def run():
+        module.render(simulations_data)
+
+    return run
+
+
+def _admin_page():
+    render_admin_panel(API_BASE_URL)
+
+
 # -------------------------------------------------------------------
-# MAIN DASHBOARD PANELS
+# PAGES (the admin page is only registered for admins)
 # -------------------------------------------------------------------
-_base_tabs = [
-    "📊 Analytics Dashboard",
-    "💬 Conversation Logs Explorer",
-    "🏪 Merchant Security View",
-    "🧪 System Specs",
-]
-_is_admin = current_role() == "admin"
-_tab_labels = _base_tabs + (["🏢 Admin"] if _is_admin else [])
-_tabs = st.tabs(_tab_labels)
-tab1, tab2, tab3, tab4 = _tabs[0], _tabs[1], _tabs[2], _tabs[3]
-admin_tab = _tabs[4] if _is_admin else None
+nav.pages.clear()
+nav.pages.update(
+    home=st.Page(_page(home), title="Home", icon="🏠", url_path="home", default=True),
+    tests=st.Page(_page(run_tests), title="Run tests", icon="🧪", url_path="tests"),
+    results=st.Page(_page(results), title="Results", icon="📊", url_path="results"),
+    chatbots=st.Page(_page(my_chatbots), title="My chatbots", icon="🤖", url_path="chatbots"),
+    help=st.Page(_page(guide), title="Help", icon="❓", url_path="help"),
+)
+if current_role() == "admin":
+    nav.pages["admin"] = st.Page(_admin_page, title="Admin", icon="🏢", url_path="admin")
 
-with tab1:
-    analytics.render(simulations_data)
-
-with tab2:
-    logs.render(simulations_data)
-
-with tab3:
-    merchant.render(simulations_data)
-
-with tab4:
-    st.subheader("🧪 Operational Environment Blueprint")
-    st.markdown("""
-    This control panel interface hooks straight into an optimized backend execution layers:
-    - **Backend Engine:** FastAPI REST Architecture (`Uvicorn`)
-    - **Data Persistence:** SQL database via SQLModel (SQLite locally, Postgres in production)
-    - **Defense Matrix:** 3-Layer Input Filtering (Static Signature + Semantic Intent Firewall + Hardened Prompts)
-    - **Red Team Matrix:** Multi-Turn Adaptive Prompt Injection LLM Generator
-    """)
-
-
-if admin_tab is not None:
-    with admin_tab:
-        render_admin_panel(API_BASE_URL)
+st.navigation(list(nav.pages.values())).run()

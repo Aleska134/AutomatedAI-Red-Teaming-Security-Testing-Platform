@@ -145,6 +145,17 @@ The central design principle is:
 > The LLM handles language and reasoning; deterministic services enforce
 > business and security rules.
 
+### Technical stack
+
+- **Backend:** FastAPI REST API served by Uvicorn.
+- **Persistence:** SQL database through SQLModel (SQLite locally, Postgres in production).
+- **Defense layers (built-in Defender):** static signature filter, semantic intent
+  firewall and hardened prompts.
+- **Red team:** a multi-turn adaptive prompt-injection attacker, judged by deterministic
+  rules plus an LLM Judge rubric.
+- **Dashboard:** Streamlit, one page per task (Home, Run tests, Results, My chatbots,
+  Help, and Admin for administrators).
+
 ## API endpoints
 
 Interactive API documentation is available at `/docs` when the backend is
@@ -308,13 +319,14 @@ Steps for options B and C:
 3. Start the backend (`uvicorn app.main:app --reload`) and the dashboard
    (`streamlit run app/frontend.py`), sign in, and have an admin activate your
    company.
-4. In the dashboard's merchant tab, open **Register a chatbot target** and save
+4. In the dashboard, open **My chatbots**, expand **Register a chatbot target** and save
    one target per mode (`http://localhost:8101/api/v1/chat` for weak,
    `http://localhost:8100/api/v1/chat` for hardened) with valid coupons `TECH10`,
    max discount `10` and protected values
    `jordan.demo@techmart.local, CNRY-8841, STAFF-7Q2X, Nordlink Components`.
-5. Pick the target in **Attack target**, choose a full or focused assessment and
-   run it. Inspect the run in the logs tab and download its report (EN/ES).
+5. On **Run tests**, pick the target in **Attack target**, choose a full or focused
+   assessment and run it. Inspect the run under **Results › History & reports** and
+   download its report (EN/ES).
 
 **Running the platform with Docker?** Inside a container `localhost` is the
 container itself, so register the chatbot as
@@ -559,7 +571,8 @@ streamlit run app/frontend.py
 The dashboard is normally available at `http://localhost:8501`. It opens on a
 sign-in screen with tabs to sign in, create a company account, or reset a
 password. After signing in, the sidebar shows your profile (with change
-password and sign out), and admins get an extra tab to manage companies.
+password and sign out) next to the page menu (Home, Run tests, Results, My
+chatbots, Help), and admins get an extra **Admin** page to manage companies.
 
 The dashboard expects the FastAPI backend at
 `http://127.0.0.1:8000/api/v1` by default. To point it to a different
