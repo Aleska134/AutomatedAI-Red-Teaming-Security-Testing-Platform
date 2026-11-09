@@ -1,93 +1,24 @@
-"""Merchant Security View: run assessments, read findings, see the run history."""
+"""Run tests: pick a chatbot and what to test, run it, and see the outcome."""
 
-
-import pandas as pd
-import plotly.express as px
 import streamlit as st
 
-from app.frontend_auth import (
-    api_post,
-)
-from app.services.batch_runner import (
-    collect_scenario_results,
-)
-from app.services.merchant_reporting import (
-    build_findings,
-    build_merchant_report,
-    group_findings,
-)
-from app.services.run_report import (
-    RULE_TITLES,
-    render_combined_report,
-)
+from app.frontend_auth import api_post
+from app.services.batch_runner import collect_scenario_results
+from app.services.run_report import render_combined_report
 from app.services.security_scenarios import (
     get_categories,
     get_scenarios,
     scenarios_for_target,
     select_scenarios,
 )
-from app.services.timefmt import format_duration, format_timestamp, run_time
+from app.ui import nav
 from app.ui.common import (
     API_BASE_URL,
-    SEVERITY_COLORS,
-    SEVERITY_ICONS,
     fetch_all_simulations,
     fetch_targets,
     run_security_test,
-    style_chart,
     viewer_timezone,
 )
-from app.ui.targets import render_target_form, render_target_manager
-
-
-def render_test_run_history(simulations):
-    """Render the persistent execution history for merchant operators."""
-    st.markdown("### Test run history")
-    if not simulations:
-        st.caption("No test runs have been persisted yet.")
-        return
-
-    st.dataframe(
-        [
-            {
-                "Run ID": item.get("run_id", item.get("session_id", "unknown")),
-                **({"Company": item["company_name"]} if "company_name" in item else {}),
-                "Status": item.get("status", "legacy"),
-                "Strategy": item.get("strategy", "unknown"),
-                "Run type": item.get("run_type", "unknown"),
-                "Turns": item.get("total_turns", item.get("total_turns_executed", 0)),
-                "Breach": "Yes" if item.get("breached") else "No",
-                "Date": format_timestamp(run_time(item), viewer_timezone()),
-                "Duration": format_duration(item.get("started_at"), item.get("completed_at")) or "—",
-            }
-            for item in simulations
-        ],
-        width="stretch",
-        hide_index=True,
-    )
-
-
-def render_finding_card(finding):
-    """One finding as a readable card: what happened, then how to fix it."""
-    severity = str(finding["severity"]).lower()
-    title = RULE_TITLES.get(finding["rule"], (finding["rule"],))[0]
-    with st.container(border=True):
-        st.markdown(
-            f"#### {SEVERITY_ICONS.get(severity, '⚪')} {title} "
-            f"· {severity.upper()}"
-        )
-        seen = ", ".join(f"#{n}" for n in finding["simulations"])
-        times = "time" if finding["count"] == 1 else "times"
-        last = (
-            f" · last found {format_timestamp(finding['last_seen'], viewer_timezone())}"
-            if finding.get("last_seen") else ""
-        )
-        st.caption(
-            f"{finding['owasp']} · found {finding['count']} {times} "
-            f"(simulation {seen}){last}"
-        )
-        st.markdown(f"**What happened**\n\n{finding['description']}")
-        st.success(f"**How to fix it**\n\n{finding['recommendation']}")
 
 
 def run_webhook_scope_test(webhook_url, auth_token):
@@ -106,8 +37,9 @@ def run_webhook_scope_test(webhook_url, auth_token):
     return response.json()
 
 
+
 def render(simulations_data):
-    st.subheader("🏪 Merchant Security View")
+    st.subheader("🧪 Run tests")
     st.markdown("### Choose a security assessment")
     st.caption(
         "Start with the full assessment for broad coverage, or choose a category "
@@ -135,9 +67,10 @@ def render(simulations_data):
             key="merchant_simulation_turns",
         )
 
-    render_target_form()
     targets = fetch_targets()
-    render_target_manager(targets)
+    if not targets and "chatbots" in nav.pages:
+        st.info("You have not registered a chatbot yet; tests run on the built-in simulator.")
+        st.page_link(nav.pages["chatbots"], label="Add your chatbot", icon="🤖")
     target_options = [None] + [t["target_id"] for t in targets]
     target_names = {t["target_id"]: f"{t['name']} ({t['webhook_url']})" for t in targets}
     selected_target = st.selectbox(
@@ -295,7 +228,6 @@ def render(simulations_data):
                     mime="text/html",
                 )
 
-    st.markdown("---")
     st.markdown("### 🔌 Connected chatbot test")
     st.caption(
         "Connect a staging chatbot without sharing its code or database. "
@@ -332,77 +264,3 @@ def render(simulations_data):
                         st.json(webhook_result)
                 except Exception as error:
                     st.error(f"Connected chatbot test failed: {error}")
-
-    merchant_report = build_merchant_report(simulations_data)
-    findings = group_findings(build_findings(simulations_data))
-
-    risk_labels = {
-        "no_data": ("⚪ NO DATA", "Run a security test to establish a baseline."),
-        "secure": ("🟢 SECURE", "No breach has been recorded in the available runs."),
-        "needs_review": (
-            "🟡 NEEDS REVIEW",
-            "Deterministic evidence requires merchant review.",
-        ),
-        "at_risk": (
-            "🔴 AT RISK",
-            "At least one simulation indicates a security breach.",
-        ),
-    }
-    risk_label, risk_message = risk_labels[merchant_report["risk_status"]]
-    st.markdown(f"### Current status: {risk_label}")
-    st.caption(risk_message)
-
-    if merchant_report["inconclusive_runs"]:
-        st.caption(
-            f"{merchant_report['inconclusive_runs']} inconclusive run(s) could not be "
-            "judged and are not counted below."
-        )
-    metric_columns = st.columns(5)
-    metric_columns[0].metric("Test Runs", merchant_report["total_runs"])
-    metric_columns[1].metric("Breaches", merchant_report["breached_runs"])
-    metric_columns[2].metric(
-        "Deterministic Findings", merchant_report["deterministic_breaches"]
-    )
-    metric_columns[3].metric("Defenses Held", merchant_report["defenses_held"])
-    metric_columns[4].metric(
-        "Average Defense",
-        f"{merchant_report['average_defense_efficiency']:.2f}/10",
-    )
-
-    st.markdown("### Findings requiring attention")
-    if not findings:
-        st.success("No findings are available for review.")
-    else:
-        for finding in findings:
-            render_finding_card(finding)
-
-        st.markdown("#### Findings by OWASP category")
-        by_category = (
-            pd.DataFrame(
-                [{"OWASP": f["owasp"], "Severity": f["severity"].upper()} for f in findings]
-            )
-            .value_counts()
-            .reset_index(name="Findings")
-        )
-        fig_bar = px.bar(
-            by_category,
-            x="Findings",
-            y="OWASP",
-            color="Severity",
-            orientation="h",
-            color_discrete_map=SEVERITY_COLORS,
-            category_orders={"Severity": list(SEVERITY_COLORS)},
-        )
-        fig_bar.update_yaxes(title=None, categoryorder="total ascending")
-        fig_bar.update_xaxes(dtick=1, gridcolor="rgba(128,128,128,0.2)")
-        fig_bar.update_traces(width=0.5)
-        height = 90 + 40 * by_category["OWASP"].nunique()
-        st.plotly_chart(style_chart(fig_bar, height=height), width="stretch")
-
-    latest = merchant_report["latest_simulation"]
-    if latest:
-        st.markdown(
-            f"**Latest test:** Simulation #{latest.get('simulation_number')} "
-            f"({latest.get('session_id')})"
-        )
-    render_test_run_history(simulations_data)

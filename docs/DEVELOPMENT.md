@@ -29,13 +29,14 @@ How to test end to end (free or with credits): README, "How to test it".
 | Recommendations / report texts | `app/services/merchant_reporting.py`, `app/services/run_report.py` (EN + ES) |
 | Per-target business rules | `BusinessRules` in `app/schemas.py`, `evaluate_business_rules` |
 | LLM provider (OpenAI/Gemini) | `app/agents/llm_provider.py` |
-| Change a dashboard tab | `app/ui/analytics.py`, `logs.py` or `merchant.py` (each exposes `render(simulations_data)`) |
+| Change a dashboard page | `app/ui/home.py`, `run_tests.py`, `results.py`, `my_chatbots.py` or `guide.py` (each exposes `render(simulations_data)`) |
+| Add or rename a page | the `st.Page` list in `app/frontend.py` (`app/ui/nav.py` lets pages link to each other) |
 | Chatbot (target) forms | `app/ui/targets.py` |
 | Shared dashboard helpers (API calls, cached loaders, chart style) | `app/ui/common.py` |
 | Per-chatbot statistics | `app/services/target_analytics.py` (no Streamlit, unit-tested) |
 
-`app/frontend.py` only sets up the page, the login gate and the tabs, then
-calls each tab's `render`. Modules under `app/ui/` must not call Streamlit at
+`app/frontend.py` only sets up the page, the login gate and the navigation,
+then runs the selected page's `render`. Modules under `app/ui/` must not call Streamlit at
 import time: Streamlit re-runs `frontend.py` on every interaction but caches
 imported modules, so top-level `st.*` calls would run once and then vanish.
 
