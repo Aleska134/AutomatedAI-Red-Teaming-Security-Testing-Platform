@@ -19,7 +19,8 @@ from app.services.target_analytics import (
     summarize_all_targets,
     target_label,
 )
-from app.ui.common import fetch_targets, style_chart
+from app.services.timefmt import format_timestamp
+from app.ui.common import fetch_targets, style_chart, viewer_timezone
 
 
 def render_scope_analytics(scope_runs):
@@ -139,6 +140,7 @@ def render_target_table(summaries):
                     f"{item['avg_defense']:.1f}/10" if item["avg_defense"] is not None else "—"
                 ),
                 "Inconclusive": item["inconclusive"],
+                "Last test": format_timestamp(item["last_run_at"], viewer_timezone()),
             }
             for item in summaries
         ],

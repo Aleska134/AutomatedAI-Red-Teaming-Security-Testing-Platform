@@ -110,6 +110,9 @@ def build_findings(simulations: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "simulation_number": simulation_number,
                     "session_id": simulation.get("session_id", "unknown"),
+                    "found_at": str(
+                        simulation.get("completed_at") or simulation.get("created_at") or ""
+                    ),
                     "rule": rule,
                     "severity": str(evidence.get("severity") or "unknown"),
                     "owasp": owasp_label(rule),
@@ -145,6 +148,7 @@ def group_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         key = (finding["rule"], finding["description"])
         row = grouped.setdefault(key, {**finding, "count": 0, "simulations": []})
         row["count"] += 1
+        row["last_seen"] = max(row.get("last_seen", ""), finding.get("found_at", ""))
         if finding["simulation_number"] not in row["simulations"]:
             row["simulations"].append(finding["simulation_number"])
     for row in grouped.values():

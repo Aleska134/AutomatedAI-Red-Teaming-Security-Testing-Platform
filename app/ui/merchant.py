@@ -26,6 +26,7 @@ from app.services.security_scenarios import (
     scenarios_for_target,
     select_scenarios,
 )
+from app.services.timefmt import format_duration, format_timestamp, run_time
 from app.ui.common import (
     API_BASE_URL,
     SEVERITY_COLORS,
@@ -34,6 +35,7 @@ from app.ui.common import (
     fetch_targets,
     run_security_test,
     style_chart,
+    viewer_timezone,
 )
 from app.ui.targets import render_target_form, render_target_manager
 
@@ -55,7 +57,8 @@ def render_test_run_history(simulations):
                 "Run type": item.get("run_type", "unknown"),
                 "Turns": item.get("total_turns", item.get("total_turns_executed", 0)),
                 "Breach": "Yes" if item.get("breached") else "No",
-                "Created": item.get("created_at", ""),
+                "Date": format_timestamp(run_time(item), viewer_timezone()),
+                "Duration": format_duration(item.get("started_at"), item.get("completed_at")) or "—",
             }
             for item in simulations
         ],
@@ -75,9 +78,13 @@ def render_finding_card(finding):
         )
         seen = ", ".join(f"#{n}" for n in finding["simulations"])
         times = "time" if finding["count"] == 1 else "times"
+        last = (
+            f" · last found {format_timestamp(finding['last_seen'], viewer_timezone())}"
+            if finding.get("last_seen") else ""
+        )
         st.caption(
             f"{finding['owasp']} · found {finding['count']} {times} "
-            f"(simulation {seen})"
+            f"(simulation {seen}){last}"
         )
         st.markdown(f"**What happened**\n\n{finding['description']}")
         st.success(f"**How to fix it**\n\n{finding['recommendation']}")
@@ -283,7 +290,7 @@ def render(simulations_data):
                 )
                 combined_btn_col.download_button(
                     "⬇️ Download combined report (all tests, print to PDF)",
-                    data=render_combined_report(batch_runs, combined_lang),
+                    data=render_combined_report(batch_runs, combined_lang, viewer_timezone()),
                     file_name=f"assessment-report-{combined_lang}.html",
                     mime="text/html",
                 )
