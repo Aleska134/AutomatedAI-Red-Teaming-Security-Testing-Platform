@@ -4,6 +4,7 @@ from collections import Counter
 from typing import Any
 
 from app.services.owasp import owasp_label
+from app.services.safe_data import as_float, as_int, as_list, as_records
 
 RECOMMENDATIONS = {
     "discount_limit": "Enforce discount limits in a deterministic pricing service.",
@@ -58,14 +59,14 @@ def build_merchant_report(simulations: list[dict[str, Any]]) -> dict[str, Any]:
     deterministic_breaches = sum(
         bool(item.get("deterministic_breach")) for item in simulations
     )
-    tool_event_count = sum(len(item.get("tool_events", [])) for item in simulations)
+    tool_event_count = sum(len(as_list(item.get("tool_events"))) for item in simulations)
     defenses_held = total_runs - breached_runs
-    average_defense = (
-        sum(float(item.get("defense_efficiency_score", 0)) for item in simulations)
-        / total_runs
-        if total_runs
-        else 0.0
-    )
+    scores = [
+        score
+        for score in (as_float(item.get("defense_efficiency_score")) for item in simulations)
+        if score is not None
+    ]
+    average_defense = sum(scores) / len(scores) if scores else 0.0
 
     if not total_runs:
         risk_status = "no_data"
@@ -88,7 +89,7 @@ def build_merchant_report(simulations: list[dict[str, Any]]) -> dict[str, Any]:
         "latest_simulation": (
             max(
                 simulations,
-                key=lambda item: int(item.get("simulation_number", 0)),
+                key=lambda item: as_int(item.get("simulation_number")),
             )
             if simulations
             else None
@@ -100,17 +101,19 @@ def build_findings(simulations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Flatten evidence into merchant-readable findings with recommendations."""
     findings: list[dict[str, Any]] = []
     for simulation in simulations:
-        simulation_number = simulation.get("simulation_number", "unknown")
-        for evidence in simulation.get("evidence", []):
-            rule = evidence.get("rule", "unknown")
+        simulation_number = simulation.get("simulation_number")
+        if simulation_number is None:
+            simulation_number = "unknown"
+        for evidence in as_records(simulation.get("evidence")):
+            rule = str(evidence.get("rule") or "unknown")
             findings.append(
                 {
                     "simulation_number": simulation_number,
                     "session_id": simulation.get("session_id", "unknown"),
                     "rule": rule,
-                    "severity": evidence.get("severity", "unknown"),
+                    "severity": str(evidence.get("severity") or "unknown"),
                     "owasp": owasp_label(rule),
-                    "description": evidence.get("description", ""),
+                    "description": str(evidence.get("description") or ""),
                     "recommendation": RECOMMENDATIONS.get(
                         rule,
                         "Review the transcript and add a regression test for this finding.",

@@ -12,6 +12,7 @@ from typing import Any
 
 from app.services.merchant_reporting import RECOMMENDATIONS
 from app.services.owasp import owasp_label
+from app.services.safe_data import as_records
 from app.services.security_scenarios import friendly_test_name, strategy_explanation
 
 SUPPORTED_LANGUAGES = ("en", "es")
@@ -168,7 +169,7 @@ def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
     # De-duplicate findings (same rule+description can come from two checks).
     seen: set = set()
     unique_evidence = []
-    for item in run.get("evidence", []):
+    for item in as_records(run.get("evidence")):
         key = (item.get("rule", ""), item.get("description", ""))
         if key in seen:
             continue
@@ -193,7 +194,7 @@ def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
         f"<div class='msg {e(m.get('role', ''))}'><div class='who'>"
         f"{t['attacker'] if m.get('role') == 'user' else t['assistant']}</div>"
         f"{e(m.get('content', ''))}</div>"
-        for m in run.get("history", [])
+        for m in as_records(run.get("history"))
     )
     inconclusive = (
         f"<p class='meta'>{e(run['inconclusive_reason'])}</p>"
@@ -217,7 +218,7 @@ def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
 <p>{t['defense']}: {e(run.get('defense_efficiency_score', '-'))}/10 ·
 {t['aggression']}: {e(run.get('attacker_aggression_level', '-'))}/5</p>
 <{h}>{t['findings']}</{h}>{findings}
-<{h}>{t['analysis']}</{h}><p>{e(run.get('analysis', ''))}</p>
+<{h}>{t['analysis']}</{h}><p>{e(run.get('analysis') or '')}</p>
 <{h}>{t['transcript']}</{h}>{transcript}"""
 
 

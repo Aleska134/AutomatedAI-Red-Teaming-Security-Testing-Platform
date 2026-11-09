@@ -41,6 +41,7 @@ from app.services.run_report import (  # noqa: E402
     render_combined_report,
     render_run_report,
 )
+from app.services.safe_data import as_int, as_list, as_records  # noqa: E402
 from app.services.security_scenarios import (  # noqa: E402
     friendly_test_name,
     get_categories,
@@ -463,7 +464,7 @@ def render_scope_analytics(scope_runs):
         df.get("deterministic_breach", pd.Series(False, index=df.index)).fillna(False).sum()
     )
     tool_event_count = sum(
-        len(record.get("tool_events", [])) for record in completed_runs
+        len(as_list(record.get("tool_events"))) for record in completed_runs
     )
 
     # Display KPIs in crisp metric columns
@@ -678,7 +679,7 @@ with tab2:
         # a glance, and the company (for admins) disambiguates.
         def _session_label(record):
             company = f" · {record['company_name']}" if record.get("company_name") else ""
-            number = int(float(record["simulation_number"]))
+            number = as_int(record["simulation_number"])
             test_name = friendly_test_name(record.get("strategy", "")) or "Test"
             return f"#{number} · {test_name}{company}"
 
@@ -741,7 +742,7 @@ with tab2:
             format_func=lambda session_id: _session_label(records_by_id[session_id]),
         )
         selected_record = records_by_id[selected_session_id]
-        selected_sim_num = int(float(selected_record["simulation_number"]))
+        selected_sim_num = as_int(selected_record["simulation_number"])
 
         # Render Audit Report metadata block
         selected_strategy = selected_record.get("strategy", "")
@@ -783,7 +784,7 @@ with tab2:
         else:
             st.success("No deterministic rule violation was found.")
 
-        evidence = selected_record.get("evidence", [])
+        evidence = as_records(selected_record.get("evidence"))
         if evidence:
             st.markdown("#### 🚨 Deterministic Evidence")
             st.dataframe(
@@ -800,7 +801,7 @@ with tab2:
                 hide_index=True,
             )
 
-        render_tool_events(selected_record.get("tool_events", []))
+        render_tool_events(as_records(selected_record.get("tool_events")))
 
         defense_outcomes = selected_record.get("defense_outcomes", [])
         if defense_outcomes:
@@ -842,7 +843,7 @@ with tab2:
         
         st.markdown("#### 💬 Dialogue Transcript")
         # Paint the dialogue elements dynamically using chat blocks
-        for message in selected_record["history"]:
+        for message in as_records(selected_record.get("history")):
             if message["role"] == "user":
                 with st.chat_message("user", avatar="⚔️"):
                     st.write(message["content"])

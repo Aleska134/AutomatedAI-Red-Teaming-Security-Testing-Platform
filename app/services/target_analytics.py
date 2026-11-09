@@ -7,6 +7,7 @@ outage, failure) says nothing about how well a chatbot resists attacks.
 from typing import Any
 
 from app.services.merchant_reporting import conclusive_runs, finished_runs
+from app.services.safe_data import as_float, as_records
 
 BUILTIN_LABEL = "Built-in Defender (simulator)"
 
@@ -33,15 +34,15 @@ def summarize_target(
     judged = conclusive_runs(mine)
     breached = sum(bool(run.get("breached")) for run in judged)
     scores = [
-        float(run["defense_efficiency_score"])
-        for run in judged
-        if run.get("defense_efficiency_score") is not None
+        score
+        for score in (as_float(run.get("defense_efficiency_score")) for run in judged)
+        if score is not None
     ]
     violated_rules = {
         evidence.get("rule")
         for run in judged
         if run.get("breached")
-        for evidence in run.get("evidence", [])
+        for evidence in as_records(run.get("evidence"))
     }
     if not judged:
         verdict = "no_data"
@@ -59,7 +60,7 @@ def summarize_target(
         "breach_rate": round(breached / len(judged), 4) if judged else None,
         "avg_defense": round(sum(scores) / len(scores), 2) if scores else None,
         "violated_rules": len(violated_rules),
-        "last_run_at": max((run.get("created_at") or "" for run in mine), default=""),
+        "last_run_at": max((str(run.get("created_at") or "") for run in mine), default=""),
         "verdict": verdict,
     }
 
@@ -92,10 +93,10 @@ def latest_outcome_by_strategy(
     latest: dict[str, dict[str, Any]] = {}
     for run in finished_runs(runs_for_target(runs, target_id)):
         strategy = run.get("strategy")
-        if not strategy:
+        if not strategy or not isinstance(strategy, str):
             continue
         current = latest.get(strategy)
-        if current is None or (run.get("created_at") or "") >= (
+        if current is None or str(run.get("created_at") or "") >= str(
             current.get("created_at") or ""
         ):
             latest[strategy] = run
