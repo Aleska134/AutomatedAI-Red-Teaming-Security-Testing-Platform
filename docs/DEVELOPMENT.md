@@ -29,6 +29,15 @@ How to test end to end (free or with credits): README, "How to test it".
 | Recommendations / report texts | `app/services/merchant_reporting.py`, `app/services/run_report.py` (EN + ES) |
 | Per-target business rules | `BusinessRules` in `app/schemas.py`, `evaluate_business_rules` |
 | LLM provider (OpenAI/Gemini) | `app/agents/llm_provider.py` |
+| Change a dashboard tab | `app/ui/analytics.py`, `logs.py` or `merchant.py` (each exposes `render(simulations_data)`) |
+| Chatbot (target) forms | `app/ui/targets.py` |
+| Shared dashboard helpers (API calls, cached loaders, chart style) | `app/ui/common.py` |
+| Per-chatbot statistics | `app/services/target_analytics.py` (no Streamlit, unit-tested) |
+
+`app/frontend.py` only sets up the page, the login gate and the tabs, then
+calls each tab's `render`. Modules under `app/ui/` must not call Streamlit at
+import time: Streamlit re-runs `frontend.py` on every interaction but caches
+imported modules, so top-level `st.*` calls would run once and then vanish.
 
 New rule checklist: rule in evaluation → OWASP mapping → `RULE_TITLES` and
 `RECOMMENDATIONS_ES` in `run_report.py` → English recommendation in
