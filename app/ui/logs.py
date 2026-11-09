@@ -18,7 +18,8 @@ from app.services.security_scenarios import (
     friendly_test_name,
     strategy_explanation,
 )
-from app.ui.common import fetch_targets
+from app.services.timefmt import format_duration, format_timestamp, run_time
+from app.ui.common import fetch_targets, viewer_timezone
 
 
 def render_tool_events(tool_events):
@@ -85,7 +86,10 @@ def render(simulations_data):
             company = f" · {record['company_name']}" if record.get("company_name") else ""
             number = as_int(record["simulation_number"])
             test_name = friendly_test_name(record.get("strategy", "")) or "Test"
-            return f"#{number} · {test_name}{company}"
+            when = format_timestamp(
+                run_time(record), viewer_timezone(), with_year=False
+            )
+            return f"#{number} · {test_name} · {when}{company}"
 
         records_by_id = {item["session_id"]: item for item in transcript_records}
 
@@ -136,7 +140,7 @@ def render(simulations_data):
                 )
                 picked_btn_col.download_button(
                     f"⬇️ Download combined report ({len(chosen_runs)} tests)",
-                    data=render_combined_report(chosen_runs, picked_lang),
+                    data=render_combined_report(chosen_runs, picked_lang, viewer_timezone()),
                     file_name=f"assessment-report-{picked_lang}.html",
                     mime="text/html",
                 )
@@ -153,6 +157,14 @@ def render(simulations_data):
         selected_test_name = friendly_test_name(selected_strategy) or "Test"
         st.markdown(
             f"#### 🧑‍⚖️ Auditor Report Summary — #{selected_sim_num}: {selected_test_name}"
+        )
+        took = format_duration(
+            selected_record.get("started_at"), selected_record.get("completed_at")
+        )
+        st.caption(
+            "🕒 Run on "
+            + format_timestamp(run_time(selected_record), viewer_timezone())
+            + (f" · took {took}" if took else "")
         )
         selected_explanation = strategy_explanation(selected_strategy)
         if selected_explanation:
@@ -175,7 +187,7 @@ def render(simulations_data):
         )
         button_col.download_button(
             "⬇️ Download report (HTML, print to PDF)",
-            data=render_run_report(selected_record, report_lang),
+            data=render_run_report(selected_record, report_lang, viewer_timezone()),
             file_name=f"report-{selected_record['session_id']}-{report_lang}.html",
             mime="text/html",
         )

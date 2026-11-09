@@ -7,6 +7,7 @@ transcripts contain the very attack payloads (``<script>`` and friends) that the
 platform tests for. Browsers save the report as PDF via "Print → Save as PDF".
 """
 
+from datetime import datetime, timezone
 from html import escape
 from typing import Any
 
@@ -14,13 +15,15 @@ from app.services.merchant_reporting import RECOMMENDATIONS
 from app.services.owasp import owasp_label
 from app.services.safe_data import as_records
 from app.services.security_scenarios import friendly_test_name, strategy_explanation
+from app.services.timefmt import format_duration, format_timestamp, run_time
 
 SUPPORTED_LANGUAGES = ("en", "es")
 
 TEXTS = {
     "en": {
         "title": "Security test report",
-        "run": "Run", "date": "Date", "strategy": "Strategy", "target": "Target",
+        "run": "Run", "date": "Date", "duration": "Duration",
+        "generated": "Report generated", "period": "Tests run between", "strategy": "Strategy", "target": "Target",
         "builtin": "Built-in Defender", "turns": "Turns",
         "verdict": "Verdict", "breached": "BREACHED", "secured": "DEFENSE HELD",
         "inconclusive": "INCONCLUSIVE", "defense": "Defense efficiency",
@@ -42,7 +45,8 @@ TEXTS = {
     },
     "es": {
         "title": "Reporte de prueba de seguridad",
-        "run": "Ejecución", "date": "Fecha", "strategy": "Estrategia", "target": "Objetivo",
+        "run": "Ejecución", "date": "Fecha", "duration": "Duración",
+        "generated": "Reporte generado", "period": "Pruebas realizadas entre", "strategy": "Estrategia", "target": "Objetivo",
         "builtin": "Defender integrado", "turns": "Turnos",
         "verdict": "Veredicto", "breached": "VULNERADO", "secured": "LA DEFENSA RESISTIÓ",
         "inconclusive": "NO CONCLUYENTE", "defense": "Eficacia de la defensa",
@@ -128,13 +132,24 @@ def _recommendation(rule: str, lang: str) -> str:
     return source.get(rule, TEXTS[lang]["default_fix"])
 
 
-def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
-    """Return the full HTML report for one stored simulation run."""
+def _generated_line(t: dict, lang: str, tz: str | None) -> str:
+    """When the report itself was produced, so a saved copy stays dated."""
+    now = format_timestamp(datetime.now(timezone.utc), tz, lang)
+    return f"<p class='meta'>{t['generated']}: {escape(now)}</p>"
+
+
+def render_run_report(
+    run: dict[str, Any], lang: str = "en", tz: str | None = None
+) -> str:
+    """Return the full HTML report for one stored simulation run.
+
+    ``tz`` is the viewer's IANA time zone name; times show in UTC without it.
+    """
     lang = lang if lang in SUPPORTED_LANGUAGES else "en"
     t = TEXTS[lang]
     e = lambda value: escape(str(value))  # noqa: E731
 
-    body = _run_body(run, lang, heading_level=2)
+    body = _run_body(run, lang, heading_level=2, tz=tz)
 
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8">
@@ -143,6 +158,7 @@ def render_run_report(run: dict[str, Any], lang: str = "en") -> str:
 <body>
 <h1>{t['title']}</h1>
 {body}
+{_generated_line(t, lang, tz)}
 <footer>{t['footer']}</footer>
 </body></html>"""
 
@@ -155,7 +171,9 @@ def _verdict_label_color(run: dict[str, Any], t: dict) -> tuple[str, str]:
     return t["secured"], "#067647"
 
 
-def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
+def _run_body(
+    run: dict[str, Any], lang: str, *, heading_level: int = 2, tz: str | None = None
+) -> str:
     """Render one run's section (meta, verdict, findings, transcript).
 
     Shared by the single-run report and the combined report so both stay
@@ -209,7 +227,10 @@ def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
         if explanation else ""
     )
 
-    return f"""<p class="meta">{t['run']}: {e(run.get('run_id', ''))} · {t['date']}: {e(run.get('completed_at') or run.get('created_at', ''))}<br>
+    took = format_duration(run.get("started_at"), run.get("completed_at"))
+    duration = f" · {t['duration']}: {e(took)}" if took else ""
+
+    return f"""<p class="meta">{t['run']}: {e(run.get('run_id', ''))} · {t['date']}: {e(format_timestamp(run_time(run), tz, lang))}{duration}<br>
 {t['test']}: {e(test_name)} · {t['target']}: {e(run.get('target_id') or t['builtin'])} ·
 {t['turns']}: {e(run.get('total_turns', ''))}</p>
 {what_is}
@@ -222,7 +243,9 @@ def _run_body(run: dict[str, Any], lang: str, *, heading_level: int = 2) -> str:
 <{h}>{t['transcript']}</{h}>{transcript}"""
 
 
-def render_combined_report(runs: list[dict[str, Any]], lang: str = "en") -> str:
+def render_combined_report(
+    runs: list[dict[str, Any]], lang: str = "en", tz: str | None = None
+) -> str:
     """Return one HTML report summarizing a batch of runs.
 
     Lists an executive summary (how many tests, breaches, held, inconclusive)
@@ -239,6 +262,14 @@ def render_combined_report(runs: list[dict[str, Any]], lang: str = "en") -> str:
         1 for r in runs if not r.get("breached") and r.get("conclusive") is False
     )
     held = total - breaches - inconclusive
+
+    times = sorted(str(run_time(run)) for run in runs if run_time(run))
+    period = (
+        f"<p class='meta'>{t['period']}: <strong>"
+        f"{e(format_timestamp(times[0], tz, lang))}</strong> — <strong>"
+        f"{e(format_timestamp(times[-1], tz, lang))}</strong></p>"
+        if times else ""
+    )
 
     summary = (
         f"<p class='meta'>{t['tests_run']}: <strong>{total}</strong> · "
@@ -265,7 +296,7 @@ def render_combined_report(runs: list[dict[str, Any]], lang: str = "en") -> str:
 
     sections = "".join(
         f"<hr><h2>{e(friendly_test_name(run.get('strategy', '')) or t['test'])} "
-        f"— #{e(run.get('simulation_number', ''))}</h2>{_run_body(run, lang, heading_level=3)}"
+        f"— #{e(run.get('simulation_number', ''))}</h2>{_run_body(run, lang, heading_level=3, tz=tz)}"
         for run in runs
     )
 
@@ -276,8 +307,10 @@ def render_combined_report(runs: list[dict[str, Any]], lang: str = "en") -> str:
 <body>
 <h1>{t['combined_title']}</h1>
 <h2>{t['summary']}</h2>
+{period}
 {summary}
 {overview}
 {sections}
+{_generated_line(t, lang, tz)}
 <footer>{t['footer']}</footer>
 </body></html>"""

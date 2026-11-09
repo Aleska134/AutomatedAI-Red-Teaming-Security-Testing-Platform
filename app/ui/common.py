@@ -32,6 +32,14 @@ def fetch_all_simulations(_token: str):
         return []
 
 
+def viewer_timezone():
+    """The browser's IANA time zone name, or None when Streamlit cannot tell."""
+    try:
+        return st.context.timezone
+    except Exception:  # noqa: BLE001 - older Streamlit, tests, no browser
+        return None
+
+
 def fetch_targets():
     response = api_get(API_BASE_URL, "/targets", timeout=30)
     return response.json() if response.status_code == 200 else []
