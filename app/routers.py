@@ -173,6 +173,14 @@ def run_automated_simulation_loop(
         target = get_target(company_id, payload.target_id)
         if target is None:
             raise HTTPException(status_code=404, detail="Target not found.")
+        if not target.get("authorization_confirmed_at"):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Confirm that you are authorized to test this chatbot "
+                    "(My chatbots) before running tests against it."
+                ),
+            )
     run_id = f"loop-{uuid.uuid4().hex[:8]}"
     record = create_test_run(
         run_id=run_id,

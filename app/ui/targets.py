@@ -9,7 +9,8 @@ from app.frontend_auth import (
     api_post,
     humanize_error,
 )
-from app.ui.common import API_BASE_URL
+from app.services.timefmt import format_timestamp
+from app.ui.common import API_BASE_URL, viewer_timezone
 
 
 def _split_list(raw):
@@ -77,6 +78,26 @@ def _business_rules_inputs(prefix, *, coupons="", max_discount=10, forbidden="",
     }
 
 
+AUTHORIZATION_LABEL = (
+    "I own this chatbot, or I am authorized to test it. I understand this tool "
+    "sends simulated attacks to it."
+)
+
+
+def _confirm_authorization(target):
+    """Record the confirmation for a target saved before it was required."""
+    response = api_patch(
+        API_BASE_URL,
+        f"/targets/{target['target_id']}",
+        json={"authorization_confirmed": True},
+        timeout=30,
+    )
+    if response.status_code == 200:
+        st.rerun()
+    else:
+        st.error(humanize_error(response, "Could not confirm authorization."))
+
+
 def render_target_manager(targets):
     """List saved targets, each with Edit and Delete controls."""
     if not targets:
@@ -88,6 +109,21 @@ def render_target_manager(targets):
             left, mid, right = st.columns([5, 1, 1])
             left.markdown(f"**{target['name']}**")
             left.caption(target["webhook_url"])
+            if target.get("authorization_confirmed_at"):
+                when = format_timestamp(target["authorization_confirmed_at"], viewer_timezone())
+                left.caption(
+                    f"✅ Authorization confirmed by {target.get('authorization_confirmed_by')} · {when}"
+                )
+            else:
+                left.warning(
+                    "Authorization not recorded. Tests against this chatbot are blocked "
+                    "until you confirm you may test it."
+                )
+                if left.button(
+                    "I confirm I am authorized to test this chatbot",
+                    key=f"authorize-{tid}",
+                ):
+                    _confirm_authorization(target)
             if mid.button("Edit", key=f"edit-btn-{tid}"):
                 # Toggle an inline edit form for this target.
                 st.session_state[f"editing-{tid}"] = not st.session_state.get(
@@ -164,8 +200,13 @@ def render_target_form():
             token = st.text_input("Bearer token (optional)", type="password")
             st.caption("🔑 Only needed if your chatbot requires one. You can edit or add it later.")
             rules_payload = _business_rules_inputs("create")
+            authorized = st.checkbox(AUTHORIZATION_LABEL, key="create-authorized")
             if st.form_submit_button("Save target"):
+                if not authorized:
+                    st.error("Please confirm that you are authorized to test this chatbot.")
+                    return
                 payload = {
+                    "authorization_confirmed": True,
                     "name": name,
                     "webhook_url": url,
                     "auth_token": token or None,

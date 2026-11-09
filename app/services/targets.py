@@ -33,6 +33,8 @@ def _public(target: dict[str, Any]) -> dict[str, Any]:
         ),
         "business_rules": target.get("business_rules"),
         "created_at": target["created_at"],
+        "authorization_confirmed_at": target.get("authorization_confirmed_at"),
+        "authorization_confirmed_by": target.get("authorization_confirmed_by"),
     }
 
 
@@ -43,7 +45,9 @@ def create_target(
     webhook_url: str,
     auth_token: Optional[str] = None,
     business_rules: Optional[dict[str, Any]] = None,
+    authorized_by: Optional[str] = None,
 ) -> dict[str, Any]:
+    """Save a target. ``authorized_by`` is who confirmed they may test it."""
     target = {
         "target_id": f"target-{uuid.uuid4().hex[:12]}",
         "company_id": company_id,
@@ -53,6 +57,8 @@ def create_target(
         "auth_token_encrypted": encrypt_secret(auth_token) if auth_token else None,
         "business_rules": business_rules,
         "created_at": _utc_now(),
+        "authorization_confirmed_at": _utc_now() if authorized_by else None,
+        "authorization_confirmed_by": authorized_by,
     }
     targets_collection.insert(target)
     return _public(target)
@@ -90,6 +96,7 @@ def update_target(
     auth_token: Optional[str] = None,
     clear_auth_token: bool = False,
     business_rules: Optional[dict[str, Any]] = None,
+    authorized_by: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Update an existing target in place, scoped to the owning company.
 
@@ -114,6 +121,11 @@ def update_target(
         fields["auth_token_encrypted"] = None
     elif auth_token:
         fields["auth_token_encrypted"] = encrypt_secret(auth_token)
+
+    # Only the first confirmation counts: it records who authorized and when.
+    if authorized_by and not existing[0].get("authorization_confirmed_at"):
+        fields["authorization_confirmed_at"] = _utc_now()
+        fields["authorization_confirmed_by"] = authorized_by
 
     if fields:
         fields["updated_at"] = _utc_now()

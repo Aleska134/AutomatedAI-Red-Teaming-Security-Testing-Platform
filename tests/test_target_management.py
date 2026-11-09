@@ -14,7 +14,7 @@ def _auth(token):
 def _create_target(api_client, token, name="Chatbot"):
     response = api_client.post(
         "/api/v1/targets",
-        json={"name": name, "webhook_url": "https://merchant.example.test/api/v1/chat"},
+        json={"authorization_confirmed": True, "name": name, "webhook_url": "https://merchant.example.test/api/v1/chat"},
         headers=_auth(token),
     )
     assert response.status_code == 201, response.text
@@ -86,7 +86,7 @@ def test_delete_requires_authentication(api_client):
 def _create_target_with_rules(api_client, token, coupons, token_value="secret-123"):
     response = api_client.post(
         "/api/v1/targets",
-        json={
+        json={"authorization_confirmed": True, 
             "name": "Shop",
             "webhook_url": "https://merchant.example.test/api/v1/chat",
             "auth_token": token_value,

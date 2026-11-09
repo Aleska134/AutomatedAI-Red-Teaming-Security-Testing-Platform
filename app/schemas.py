@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 from app.domain import SUPPORTED_ATTACK_STRATEGIES
 
@@ -160,6 +160,9 @@ class TargetCreateRequest(BaseModel):
     webhook_url: str = Field(min_length=1, max_length=2_000)
     auth_token: str | None = Field(default=None, max_length=2_000)
     business_rules: BusinessRules | None = None
+    # The company must state it owns this chatbot or may test it; the platform
+    # records who confirmed it and when.
+    authorization_confirmed: StrictBool = False
 
 
 class TargetUpdateRequest(BaseModel):
@@ -173,6 +176,8 @@ class TargetUpdateRequest(BaseModel):
     auth_token: str | None = Field(default=None, max_length=2_000)
     clear_auth_token: bool = False
     business_rules: BusinessRules | None = None
+    # Lets older targets (saved before authorization was recorded) be confirmed.
+    authorization_confirmed: StrictBool = False
 
 
 class TargetView(BaseModel):
@@ -183,6 +188,8 @@ class TargetView(BaseModel):
     has_auth_token: bool
     business_rules: BusinessRules | None = None
     created_at: str
+    authorization_confirmed_at: str | None = None
+    authorization_confirmed_by: str | None = None
 
 
 class WebhookTestResponse(BaseModel):

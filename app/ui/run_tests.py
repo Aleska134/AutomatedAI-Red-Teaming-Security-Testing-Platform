@@ -89,6 +89,20 @@ def render(simulations_data):
         )
 
     has_target = selected_target is not None
+    unauthorized = next(
+        (
+            t for t in targets
+            if t["target_id"] == selected_target and not t.get("authorization_confirmed_at")
+        ),
+        None,
+    )
+    if unauthorized:
+        st.warning(
+            "You have not confirmed that you are authorized to test this chatbot, so "
+            "tests against it are blocked. Confirm it under My chatbots."
+        )
+        if "chatbots" in nav.pages:
+            st.page_link(nav.pages["chatbots"], label="Go to My chatbots", icon="🤖")
     if assessment_mode == "Pick specific tests":
         # Offer every runnable test and let the user choose which ones to run.
         pickable = scenarios_for_target(get_scenarios(), has_target=has_target)
@@ -141,7 +155,7 @@ def render(simulations_data):
         "🚀 Run security assessment",
         type="primary",
         width="stretch",
-        disabled=not scenarios,
+        disabled=not scenarios or unauthorized is not None,
     )
 
     if run_merchant_test:

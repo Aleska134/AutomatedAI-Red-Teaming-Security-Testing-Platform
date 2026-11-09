@@ -204,6 +204,11 @@ def create_company_target(
     payload: TargetCreateRequest,
     principal: dict = Depends(require_active_company),
 ):
+    if not payload.authorization_confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm that you own this chatbot or are authorized to test it.",
+        )
     try:
         validate_webhook_url(payload.webhook_url)
     except WebhookAdapterError as error:
@@ -216,6 +221,7 @@ def create_company_target(
         business_rules=(
             payload.business_rules.model_dump() if payload.business_rules else None
         ),
+        authorized_by=principal["user"]["email"],
     )
 
 
@@ -249,6 +255,9 @@ def update_company_target(
         clear_auth_token=payload.clear_auth_token,
         business_rules=(
             payload.business_rules.model_dump() if payload.business_rules else None
+        ),
+        authorized_by=(
+            principal["user"]["email"] if payload.authorization_confirmed else None
         ),
     )
     if updated is None:
