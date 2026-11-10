@@ -7,6 +7,7 @@ from app.services.webhook_adapter import WebhookAdapterError, wake_webhook
 from tests.conftest import register_active_company
 
 URL = "https://sleepy-bot.example.test/api/v1/chat"
+HEALTH = "https://sleepy-bot.example.test/health"
 
 
 class FakeTime:
@@ -14,105 +15,151 @@ class FakeTime:
 
     def __init__(self):
         self.now = 0.0
+        self.sleeps = []
 
     def clock(self):
         return self.now
 
     def sleep(self, seconds):
+        self.sleeps.append(seconds)
         self.now += seconds
 
 
 class Reply:
-    def __init__(self, status_code):
+    def __init__(self, status_code, headers=None):
         self.status_code = status_code
+        self.headers = headers or {}
 
 
-def _transport(*outcomes, time_=None):
-    """Return each outcome in turn (an Exception is raised); records the calls."""
+def _wake(health=(200,), webhook=(200,), **kwargs):
+    """Run a wake against scripted answers per URL (an Exception is raised, the
+    last answer repeats). Returns ``(result, calls, fake_time)``."""
+    fake = FakeTime()
+    scripts = {HEALTH: list(health), URL: list(webhook)}
     calls = []
-    queue = list(outcomes)
 
-    def transport(url, **kwargs):
-        calls.append((url, kwargs))
-        if time_:
-            time_.now += 0.5  # a request takes a moment
+    def transport(url, **kw):
+        calls.append((url, kw))
+        fake.now += 0.5  # a request takes a moment
+        queue = scripts[url]
         outcome = queue.pop(0) if len(queue) > 1 else queue[0]
         if isinstance(outcome, Exception):
             raise outcome
-        return Reply(outcome)
+        return outcome if isinstance(outcome, Reply) else Reply(outcome)
 
-    transport.calls = calls
-    return transport
-
-
-def _wake(*outcomes, **kwargs):
-    fake = FakeTime()
-    transport = _transport(*outcomes, time_=fake)
     result = wake_webhook(URL, transport=transport, sleep=fake.sleep, clock=fake.clock, **kwargs)
-    return result, transport
+    return result, calls, fake
 
 
-def test_awake_chatbot_answers_on_the_first_try():
-    result, transport = _wake(200)
-    assert result["awake"] is True and result["attempts"] == 1
-    assert len(transport.calls) == 1
+def test_a_healthy_chatbot_is_active_on_the_first_try():
+    result, calls, _ = _wake(health=[200])
+    assert result["awake"] is True and result["status_code"] == 200
+    assert result["attempts"] == 1 and "is active (HTTP 200)" in result["message"]
+    assert [url for url, _ in calls] == [HEALTH]  # the webhook itself is not touched
 
 
-@pytest.mark.parametrize("status", [401, 404, 405, 422, 500])
-def test_any_real_answer_counts_as_awake(status):
-    result, _ = _wake(status)
-    assert result["awake"] is True and result["status_code"] == status
+def test_429_is_not_ready_it_waits_for_the_200():
+    result, calls, _ = _wake(health=[429, 429, 429, 200])
+    assert result["awake"] is True and result["status_code"] == 200
+    assert result["attempts"] == 4
 
 
-def test_retries_through_timeouts_and_gateway_errors_until_it_answers():
-    result, transport = _wake(
-        requests.Timeout(), requests.ConnectionError(), 503, 502, 504, 405
+def test_a_chatbot_that_keeps_answering_429_is_not_reported_active():
+    result, calls, _ = _wake(health=[429], budget_seconds=20)
+    assert result["awake"] is False and result["status_code"] == 429
+    assert "limiting requests (HTTP 429)" in result["message"]
+    assert 2 <= len(calls) <= 10  # bounded, not an endless loop
+
+
+def test_retry_after_is_respected_but_capped():
+    _, _, fake = _wake(
+        health=[Reply(429, {"Retry-After": "7"}), Reply(429, {"Retry-After": "9999"}), 200],
+        budget_seconds=75,
     )
-    assert result["awake"] is True
-    assert result["attempts"] == 6
-    assert result["status_code"] == 405
+    assert fake.sleeps == [7.0, 10.0]
 
 
-def test_gives_up_when_the_budget_runs_out_and_says_so():
-    result, transport = _wake(requests.Timeout(), budget_seconds=20, retry_delay=3)
-    assert result["awake"] is False
-    assert result["status_code"] is None
-    assert "did not wake up" in result["message"]
-    assert 2 <= len(transport.calls) <= 8  # bounded, not an endless loop
+def test_a_bad_retry_after_falls_back_to_the_default_delay():
+    _, _, fake = _wake(health=[Reply(429, {"Retry-After": "soon"}), 200], retry_delay=3)
+    assert fake.sleeps == [3]
+
+
+def test_retries_through_timeouts_connection_errors_and_gateway_errors():
+    result, _, _ = _wake(
+        health=[requests.Timeout(), requests.ConnectionError(), 503, 502, 504, 200]
+    )
+    assert result["awake"] is True and result["attempts"] == 6
 
 
 def test_a_service_stuck_on_503_is_not_reported_awake():
-    result, _ = _wake(503, budget_seconds=15)
+    result, _, _ = _wake(health=[503], budget_seconds=15)
     assert result["awake"] is False and result["status_code"] == 503
+    assert "did not wake up" in result["message"]
 
 
-def test_the_ping_sends_no_credentials_and_does_not_follow_redirects():
-    _, transport = _wake(200)
-    (url, kwargs), = transport.calls
-    assert url == URL
-    assert kwargs["allow_redirects"] is False
-    assert "authorization" not in {k.lower() for k in kwargs["headers"]}
-    assert "json" not in kwargs and "data" not in kwargs
+@pytest.mark.parametrize("status", [404, 405, 401, 422])
+def test_without_a_health_route_the_webhook_answering_counts_as_awake(status):
+    result, calls, _ = _wake(health=[404], webhook=[status])
+    assert result["awake"] is True and result["status_code"] == status
+    assert [url for url, _ in calls] == [HEALTH, URL]
+
+
+def test_without_a_health_route_a_429_from_the_webhook_still_waits():
+    result, _, _ = _wake(health=[404], webhook=[429, 429, 405])
+    assert result["awake"] is True and result["status_code"] == 405
+    assert result["attempts"] == 3
+
+
+def test_health_error_then_webhook_gateway_error_keeps_retrying():
+    result, _, _ = _wake(health=[404], webhook=[502], budget_seconds=12)
+    assert result["awake"] is False
+
+
+def test_a_webhook_that_raises_is_retried_not_crashed():
+    result, _, _ = _wake(health=[404], webhook=[requests.Timeout(), 405])
+    assert result["awake"] is True and result["status_code"] == 405
+
+
+def test_health_is_taken_from_the_host_even_with_a_port_path_and_query():
+    fake = FakeTime()
+    seen = []
+
+    def transport(url, **kw):
+        seen.append(url)
+        return Reply(200)
+
+    wake_webhook("https://bot.example.test:8443/a/b/c?x=1#frag", transport=transport,
+                 sleep=fake.sleep, clock=fake.clock)
+    assert seen == ["https://bot.example.test:8443/health"]
+
+
+def test_pings_send_no_credentials_and_do_not_follow_redirects():
+    _, calls, _ = _wake(health=[404], webhook=[405])
+    assert len(calls) == 2
+    for _, kwargs in calls:
+        assert kwargs["allow_redirects"] is False
+        assert "authorization" not in {k.lower() for k in kwargs["headers"]}
+        assert "json" not in kwargs and "data" not in kwargs
 
 
 def test_each_request_timeout_is_bounded_by_the_remaining_budget():
-    _, transport = _wake(200, budget_seconds=5)
-    assert 1 <= transport.calls[0][1]["timeout"] <= 5
+    _, calls, _ = _wake(health=[200], budget_seconds=5)
+    assert 1 <= calls[0][1]["timeout"] <= 5
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "169.254.169.254", "10.0.0.5"])
 def test_private_addresses_are_refused_before_any_request(monkeypatch, address):
     monkeypatch.setattr("app.services.webhook_adapter._resolve_host", lambda host: [address])
-    transport = _transport(200)
+    calls = []
     with pytest.raises(WebhookAdapterError):
-        wake_webhook("https://evil.example.test/", transport=transport)
-    assert transport.calls == []
+        wake_webhook("https://evil.example.test/", transport=lambda *a, **k: calls.append(a))
+    assert calls == []
 
 
 @pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://x.test/", "", "javascript:alert(1)"])
 def test_non_http_urls_are_refused(url):
     with pytest.raises(WebhookAdapterError):
-        wake_webhook(url, transport=_transport(200))
+        wake_webhook(url, transport=lambda *a, **k: Reply(200))
 
 
 # --- API ------------------------------------------------------------------ #
