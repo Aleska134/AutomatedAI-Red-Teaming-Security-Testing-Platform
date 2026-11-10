@@ -45,9 +45,19 @@ def validate_webhook_url(webhook_url: str) -> None:
             )
 
 
-# Free hosting plans put idle services to sleep; the first request wakes them
-# and proxies answer 502/503/504 (or hang) until the service is up.
-WAKE_RETRY_STATUSES = {502, 503, 504}
+# Free hosting plans put idle services to sleep. While one starts, the proxy
+# answers 502/503/504 or 429 (too many requests), so none of those mean "ready".
+WAKE_RETRY_STATUSES = {429, 502, 503, 504}
+WAKE_MAX_RETRY_AFTER = 10.0
+
+
+def _retry_after(response: Any, default: float) -> float:
+    """Seconds a 429/503 asks us to wait, bounded so a wake never stalls."""
+    try:
+        wanted = float(response.headers.get("Retry-After", ""))
+    except (AttributeError, TypeError, ValueError):
+        return default
+    return max(default, min(wanted, WAKE_MAX_RETRY_AFTER))
 
 
 def wake_webhook(
@@ -59,45 +69,68 @@ def wake_webhook(
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
 ) -> dict[str, Any]:
-    """Ping a chatbot until it answers, so a sleeping service is up before a test.
+    """Ping a chatbot until it is ready, so a sleeping service is up before a test.
 
-    Same SSRF rules as every webhook call. Any real HTTP answer (even 404 or 405)
-    means the service is awake; timeouts, connection errors and 502/503/504 are
-    retried until ``budget_seconds`` run out. No credentials are sent: a plain
-    GET is enough to wake it, and a token has no business in a ping.
+    Each round asks the chatbot's ``/health`` first: a 2xx there means active. A
+    chatbot without that route answers 404/405, and then the webhook URL itself
+    is tried, where any answer other than 429/502/503/504 proves it is serving.
+    Timeouts, connection errors and those statuses are retried until
+    ``budget_seconds`` run out. Same SSRF rules as every webhook call, and no
+    credentials are sent: a plain GET is enough to wake a service.
     """
     validate_webhook_url(webhook_url)
+    parts = urlparse(webhook_url)
+    health_url = f"{parts.scheme}://{parts.netloc}/health"
+
+    def get(url: str) -> Any:
+        return transport(
+            url,
+            headers={"X-AI-Security-Test": "wake"},
+            timeout=max(1.0, min(30.0, budget_seconds - (clock() - started))),
+            allow_redirects=False,
+        )
+
     started = clock()
     attempts = 0
     status_code: int | None = None
+    ready = False
+    wait = retry_delay
     while True:
         attempts += 1
-        remaining = budget_seconds - (clock() - started)
+        wait = retry_delay
         try:
-            response = transport(
-                webhook_url,
-                headers={"X-AI-Security-Test": "wake"},
-                timeout=max(1.0, min(30.0, remaining)),
-                allow_redirects=False,
-            )
+            response = get(health_url)
             status_code = response.status_code
-            if status_code not in WAKE_RETRY_STATUSES:
-                break
+            if 200 <= status_code < 300:
+                ready = True
+            elif status_code in WAKE_RETRY_STATUSES:
+                wait = _retry_after(response, retry_delay)
+            else:
+                # No /health route: the webhook URL itself shows if it is serving.
+                response = get(webhook_url)
+                status_code = response.status_code
+                if status_code in WAKE_RETRY_STATUSES:
+                    wait = _retry_after(response, retry_delay)
+                else:
+                    ready = True
         except requests.RequestException:
             status_code = None
-        if budget_seconds - (clock() - started) <= retry_delay:
+        if ready or budget_seconds - (clock() - started) <= wait:
             break
-        sleep(retry_delay)
+        sleep(wait)
 
-    awake = status_code is not None and status_code not in WAKE_RETRY_STATUSES
     seconds = round(clock() - started, 1)
-    message = (
-        f"The chatbot answered (HTTP {status_code}) after {seconds} s."
-        if awake
-        else f"The chatbot did not wake up within {seconds} s. Try again in a minute."
-    )
+    if ready:
+        message = f"The chatbot is active (HTTP {status_code}). It answered in {seconds} s."
+    elif status_code == 429:
+        message = (
+            f"The chatbot is still limiting requests (HTTP 429) after {seconds} s. "
+            "Wait a minute and try again."
+        )
+    else:
+        message = f"The chatbot did not wake up within {seconds} s. Try again in a minute."
     return {
-        "awake": awake,
+        "awake": ready,
         "status_code": status_code,
         "seconds": seconds,
         "attempts": attempts,
