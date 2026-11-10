@@ -28,6 +28,7 @@ from app.schemas import (
     TargetCreateRequest,
     TargetUpdateRequest,
     TargetView,
+    WakeResponse,
     WebhookTestResponse,
 )
 from app.services.accounts import (
@@ -57,6 +58,7 @@ from app.services.webhook_adapter import (
     WebhookAdapterError,
     send_webhook_message,
     validate_webhook_url,
+    wake_webhook,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["Authentication & Tenancy"])
@@ -279,6 +281,22 @@ def delete_company_target(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Target not found."
         )
+
+
+@router.post("/targets/{target_id}/wake", response_model=WakeResponse)
+def wake_company_target(
+    target_id: str,
+    principal: dict = Depends(require_admin),
+):
+    """Administrators only: ping one of their own targets until it answers, so a
+    sleeping free-tier chatbot is up before a test starts."""
+    target = get_target(principal["company"]["company_id"], target_id)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target not found.")
+    try:
+        return wake_webhook(target["webhook_url"])
+    except WebhookAdapterError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
 
 
 @router.post("/targets/{target_id}/test", response_model=WebhookTestResponse)

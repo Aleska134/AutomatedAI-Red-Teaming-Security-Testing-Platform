@@ -3,6 +3,7 @@
 import ipaddress
 import os
 import socket
+import time
 from typing import Any, Callable
 from urllib.parse import urlparse
 
@@ -42,6 +43,66 @@ def validate_webhook_url(webhook_url: str) -> None:
             raise WebhookAdapterError(
                 "webhook_url must resolve to a public address."
             )
+
+
+# Free hosting plans put idle services to sleep; the first request wakes them
+# and proxies answer 502/503/504 (or hang) until the service is up.
+WAKE_RETRY_STATUSES = {502, 503, 504}
+
+
+def wake_webhook(
+    webhook_url: str,
+    *,
+    budget_seconds: float = 75,
+    retry_delay: float = 3,
+    transport: Callable[..., Any] = requests.get,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> dict[str, Any]:
+    """Ping a chatbot until it answers, so a sleeping service is up before a test.
+
+    Same SSRF rules as every webhook call. Any real HTTP answer (even 404 or 405)
+    means the service is awake; timeouts, connection errors and 502/503/504 are
+    retried until ``budget_seconds`` run out. No credentials are sent: a plain
+    GET is enough to wake it, and a token has no business in a ping.
+    """
+    validate_webhook_url(webhook_url)
+    started = clock()
+    attempts = 0
+    status_code: int | None = None
+    while True:
+        attempts += 1
+        remaining = budget_seconds - (clock() - started)
+        try:
+            response = transport(
+                webhook_url,
+                headers={"X-AI-Security-Test": "wake"},
+                timeout=max(1.0, min(30.0, remaining)),
+                allow_redirects=False,
+            )
+            status_code = response.status_code
+            if status_code not in WAKE_RETRY_STATUSES:
+                break
+        except requests.RequestException:
+            status_code = None
+        if budget_seconds - (clock() - started) <= retry_delay:
+            break
+        sleep(retry_delay)
+
+    awake = status_code is not None and status_code not in WAKE_RETRY_STATUSES
+    seconds = round(clock() - started, 1)
+    message = (
+        f"The chatbot answered (HTTP {status_code}) after {seconds} s."
+        if awake
+        else f"The chatbot did not wake up within {seconds} s. Try again in a minute."
+    )
+    return {
+        "awake": awake,
+        "status_code": status_code,
+        "seconds": seconds,
+        "attempts": attempts,
+        "message": message,
+    }
 
 
 def send_webhook_message(

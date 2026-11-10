@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from app.frontend_auth import api_post
+from app.frontend_auth import api_post, current_role, humanize_error
 from app.services.batch_runner import collect_scenario_results
 from app.services.run_report import render_combined_report
 from app.services.security_scenarios import (
@@ -36,6 +36,21 @@ def run_webhook_scope_test(webhook_url, auth_token):
         raise RuntimeError(response.text)
     return response.json()
 
+
+
+def wake_chatbot(target_id):
+    """Ask the backend to ping the chatbot until it answers (admin only).
+
+    Returns ``(awake, message)``; never raises, so a failed ping cannot block a test.
+    """
+    try:
+        response = api_post(API_BASE_URL, f"/targets/{target_id}/wake", timeout=100)
+    except Exception as error:  # noqa: BLE001 - network problems become a message
+        return False, f"Could not reach the platform to wake the chatbot: {error}"
+    if response.status_code != 200:
+        return False, humanize_error(response, "Could not wake the chatbot.")
+    result = response.json()
+    return bool(result["awake"]), result["message"]
 
 
 def render(simulations_data):
@@ -79,6 +94,21 @@ def render(simulations_data):
         format_func=lambda tid: target_names.get(tid, "Built-in Defender (simulator)"),
         key="merchant_target",
     )
+
+    # Free hosting puts idle chatbots to sleep; administrators can wake one first.
+    wake_first = False
+    if selected_target and current_role() == "admin":
+        wake_col, wake_check_col = st.columns([1, 2])
+        if wake_col.button("☀️ Wake up chatbot", key="wake-chatbot"):
+            with st.spinner("Waking up the chatbot (can take up to a minute)..."):
+                awake, message = wake_chatbot(selected_target)
+            (st.success if awake else st.warning)(message)
+        wake_first = wake_check_col.checkbox(
+            "Wake it up before running the tests",
+            value=True,
+            key="wake-first",
+            help="Pings the chatbot until it answers, so the first test does not time out.",
+        )
 
     selected_category = None
     if assessment_mode == "Focused Test":
@@ -161,6 +191,11 @@ def render(simulations_data):
     if run_merchant_test:
         # Run each scenario independently: one failing test (e.g. the target
         # was asleep and timed out) must NOT abort the remaining tests.
+        if wake_first and selected_target:
+            with st.spinner("Waking up the chatbot..."):
+                awake, message = wake_chatbot(selected_target)
+            if not awake:
+                st.warning(f"{message} Running the tests anyway.")
         progress = st.progress(0.0)
         batch_run_ids = []
 
