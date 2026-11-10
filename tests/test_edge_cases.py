@@ -158,7 +158,7 @@ def test_company_cannot_run_against_another_companys_target(api_client, monkeypa
                         raising=False)
     created = api_client.post(
         "/api/v1/targets",
-        json={"name": "A bot", "webhook_url": "https://example.com/chat"},
+        json={"authorization_confirmed": True, "name": "A bot", "webhook_url": "https://example.com/chat"},
         headers=_headers(a_token),
     )
     if created.status_code not in (200, 201):

@@ -10,6 +10,10 @@ from app.frontend_auth import (
     api_post,
 )
 
+# Optional: URL of a deliberately vulnerable demo chatbot offered on Home for
+# first-time users. Leave unset to hide the "try the sample chatbot" button.
+SAMPLE_CHATBOT_URL = os.getenv("SAMPLE_CHATBOT_URL", "").strip()
+
 API_BASE_URL = os.getenv(
     "API_BASE_URL",
     "http://127.0.0.1:8000/api/v1",

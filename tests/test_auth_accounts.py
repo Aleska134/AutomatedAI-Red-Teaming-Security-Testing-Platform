@@ -43,7 +43,7 @@ def test_pending_company_cannot_operate(api_client):
     ).json()["access_token"]
     response = api_client.post(
         "/api/v1/targets",
-        json={"name": "bot", "webhook_url": "https://bot.test/chat"},
+        json={"authorization_confirmed": True, "name": "bot", "webhook_url": "https://bot.test/chat"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
@@ -95,7 +95,7 @@ def test_targets_are_tenant_isolated(api_client):
 
     created = api_client.post(
         "/api/v1/targets",
-        json={"name": "A-bot", "webhook_url": "https://a.test/chat"},
+        json={"authorization_confirmed": True, "name": "A-bot", "webhook_url": "https://a.test/chat"},
         headers={"Authorization": f"Bearer {a_token}"},
     )
     assert created.status_code == 201
@@ -215,7 +215,7 @@ def test_target_auth_token_is_encrypted_at_rest(api_client):
     company_id, token = register_active_company(api_client, "Acme", "enc@test.local")
     created = api_client.post(
         "/api/v1/targets",
-        json={"name": "bot", "webhook_url": "https://bot.test/chat", "auth_token": "s3cret-token"},
+        json={"authorization_confirmed": True, "name": "bot", "webhook_url": "https://bot.test/chat", "auth_token": "s3cret-token"},
         headers={"Authorization": f"Bearer {token}"},
     ).json()
     stored = targets_collection.get(target_id=created["target_id"])

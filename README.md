@@ -249,7 +249,7 @@ includes the company id and role.
 | `POST` | `/api/v1/auth/reset-password` | Reset password with a token |
 | `GET` | `/api/v1/admin/companies` | List companies (admin only) |
 | `POST` | `/api/v1/admin/companies/{id}/status` | Activate/suspend a company (admin only) |
-| `POST` | `/api/v1/targets` | Register a reusable chatbot target |
+| `POST` | `/api/v1/targets` | Register a reusable chatbot target (requires `"authorization_confirmed": true`; who and when are recorded) |
 | `GET` | `/api/v1/targets` | List this company's targets |
 | `PATCH` | `/api/v1/targets/{id}` | Update a saved target (name, URL, token, business rules) |
 | `DELETE` | `/api/v1/targets/{id}` | Delete a saved target |
@@ -333,6 +333,13 @@ container itself, so register the chatbot as
 `http://host.docker.internal:8101/api/v1/chat` (Docker Desktop on Mac/Windows).
 `docker compose` reads `ALLOW_PRIVATE_WEBHOOKS` from your `.env`; restart the
 stack after changing it. Never enable it in a deployed environment (SSRF).
+
+**Authorization.** Registering a chatbot requires confirming that you own it or
+may test it (`authorization_confirmed: true` in the API, a checkbox in the
+dashboard). The platform records who confirmed it and when, and refuses to run
+tests against a target without that record. Targets saved before this existed can
+be confirmed with `PATCH /api/v1/targets/{id}` (`authorization_confirmed: true`) or
+from **My chatbots**.
 
 The same flow works through the API: `POST /api/v1/targets`, then
 `POST /api/v1/simulation/loop` with `{"target_id": "<id>", "turns": 2}` and poll
@@ -582,6 +589,12 @@ backend, set `API_BASE_URL` before starting Streamlit:
 export API_BASE_URL="https://your-forwarded-api-url/api/v1"
 streamlit run app/frontend.py
 ```
+
+Optional: set `SAMPLE_CHATBOT_URL` (the chat endpoint of a deliberately
+vulnerable demo chatbot, e.g. the weak mode from the AI-Chatbot repo) to show a
+**Try the sample chatbot** button on Home for first-time users. It registers the
+chatbot with the demo shop's business rules. Without the variable the button is
+hidden.
 
 ## Deploy (free tier)
 

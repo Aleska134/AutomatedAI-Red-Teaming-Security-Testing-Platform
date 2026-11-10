@@ -8,7 +8,7 @@ def _create_target(api_client, headers, monkeypatch):
     monkeypatch.setenv("ALLOW_PRIVATE_WEBHOOKS", "true")
     response = api_client.post(
         "/api/v1/targets",
-        json={"name": "Shop bot", "webhook_url": "http://localhost:8001/api/v1/chat",
+        json={"authorization_confirmed": True, "name": "Shop bot", "webhook_url": "http://localhost:8001/api/v1/chat",
               "auth_token": "bot-secret"},
         headers=headers,
     )
@@ -96,7 +96,7 @@ def test_business_rules_turn_invented_coupons_into_breaches(api_client, monkeypa
     headers = _auth(api_client, "rules@runs.test")
     created = api_client.post(
         "/api/v1/targets",
-        json={"name": "Shop", "webhook_url": "http://localhost:8001/api/v1/chat",
+        json={"authorization_confirmed": True, "name": "Shop", "webhook_url": "http://localhost:8001/api/v1/chat",
               "business_rules": RULES},
         headers=headers,
     ).json()

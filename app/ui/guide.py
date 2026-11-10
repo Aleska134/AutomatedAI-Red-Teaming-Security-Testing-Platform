@@ -22,5 +22,22 @@ def render(simulations_data):
         "downloadable report (print it to PDF).\n"
         "- **Results › Compare chatbots** shows which chatbot resisted and which fell."
     )
+    st.markdown("### Your data")
+    st.markdown(
+        "- **Only test chatbots you own or may test.** When you add one, we record who "
+        "confirmed that and when.\n"
+        "- **What we send to your chatbot:** only the simulated attack messages of the "
+        "tests you run.\n"
+        "- **What we store:** test conversations, findings and reports, saved under your "
+        "company account. Only your company and the platform administrators can see them.\n"
+        "- **Access tokens** for your chatbot are stored encrypted.\n"
+        "- **AI providers:** if the platform has an AI provider configured (OpenAI or "
+        "Gemini), the attacker and the judge send test conversations to it to write "
+        "attacks and evaluate replies. Without one, built-in attacks and fixed rules are "
+        "used.\n"
+        "- **Deleting:** you can delete a chatbot under My chatbots. Nothing is deleted "
+        "automatically and past test results cannot be deleted from the dashboard yet; "
+        "ask the administrator to remove them."
+    )
     st.markdown("### Connecting a chatbot")
     render_target_fields_help()
