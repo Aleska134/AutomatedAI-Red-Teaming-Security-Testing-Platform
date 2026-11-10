@@ -192,6 +192,14 @@ class TargetView(BaseModel):
     authorization_confirmed_by: str | None = None
 
 
+class WakeResponse(BaseModel):
+    awake: bool
+    status_code: int | None = None
+    seconds: float
+    attempts: int
+    message: str
+
+
 class WebhookTestResponse(BaseModel):
     status: Literal["completed", "failed"]
     scenario: str

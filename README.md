@@ -254,6 +254,7 @@ includes the company id and role.
 | `PATCH` | `/api/v1/targets/{id}` | Update a saved target (name, URL, token, business rules) |
 | `DELETE` | `/api/v1/targets/{id}` | Delete a saved target |
 | `POST` | `/api/v1/targets/{id}/test` | Run the scope-boundary probe against a saved target |
+| `POST` | `/api/v1/targets/{id}/wake` | **Admin only.** Ping one of your own targets until it answers (wakes sleeping free-tier chatbots); no credentials are sent |
 
 Password reset: `/auth/forgot-password` always returns the same generic
 message and **never** includes the reset token, which must reach the account
